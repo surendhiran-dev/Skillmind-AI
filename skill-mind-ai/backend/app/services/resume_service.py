@@ -1,204 +1,136 @@
 import os
 import re
-from .ai_service import analyze_resume_llm, compare_resume_jd_llm, HAS_GEMINI
+from .ai_service import analyze_resume_llm, calculate_job_fit_llm, HAS_GEMINI
 
-# Try PyPDF2 for PDF parsing
+# Support for PDF and DOCX
 try:
     from PyPDF2 import PdfReader
     HAS_PYPDF2 = True
 except ImportError:
     HAS_PYPDF2 = False
 
-# Curated skill list for keyword-based extraction (Existing)
-KNOWN_SKILLS = [
-    # Programming Languages
-    "Python", "JavaScript", "TypeScript", "Java", "C++", "C#", "Go", "Rust",
-    "Ruby", "PHP", "Swift", "Kotlin", "Scala", "R", "MATLAB", "Perl", "Dart", "COBOL",
-    # Web Frameworks
-    "React", "Angular", "Vue.js", "Next.js", "Django", "Flask", "Express.js",
-    "Spring Boot", "ASP.NET", "Ruby on Rails", "Laravel", "FastAPI", "Svelte", "Nuxt.js",
-    # Databases
-    "MySQL", "PostgreSQL", "MongoDB", "Redis", "Elasticsearch", "SQLite",
-    "Oracle", "Cassandra", "DynamoDB", "Firebase", "MariaDB", "Supabase",
-    # Cloud & DevOps
-    "AWS", "Azure", "GCP", "Docker", "Kubernetes", "Jenkins", "Terraform",
-    "Ansible", "CI/CD", "Linux", "Git", "GitHub", "GitLab", "Nginx", "Apache",
-    "Serverless", "Prometheus", "Grafana",
-    # Data & ML
-    "Machine Learning", "Deep Learning", "TensorFlow", "PyTorch", "Keras",
-    "Pandas", "NumPy", "Scikit-learn", "NLP", "Computer Vision",
-    "Data Science", "Data Analysis", "Power BI", "Tableau", "Spark", "Hadoop",
-    # Other
-    "REST API", "GraphQL", "Microservices", "Agile", "Scrum",
-    "HTML", "CSS", "SQL", "NoSQL", "Figma", "Jira",
-    "Node.js", "Webpack", "Babel", "SASS", "Tailwind CSS", "Redux", "Docker Compose"
-]
+try:
+    import docx
+    HAS_DOCX = True
+except ImportError:
+    HAS_DOCX = False
 
-# Skill Aliases and Groups for smarter matching
-# Format: "Generic Requirement": ["Specific Implementation 1", "Specific Implementation 2"]
-SKILL_ALIASES = {
-    "SQL": ["MySQL", "PostgreSQL", "SQLite", "Oracle", "Cassandra", "SQL Server", "MariaDB", "T-SQL", "PL/SQL"],
-    "NoSQL": ["MongoDB", "Redis", "Cassandra", "DynamoDB", "Firebase", "CouchDB", "Neo4j"],
-    "JavaScript": ["JS", "TypeScript", "React", "Vue.js", "Angular", "Node.js", "Next.js", "Express.js"],
-    "Python": ["Django", "Flask", "FastAPI", "Pandas", "NumPy", "Scikit-learn", "PyTorch", "TensorFlow"],
-    "Java": ["Spring Boot", "Kotlin", "Android", "Maven", "Gradle"],
-    "Cloud": ["AWS", "Azure", "GCP", "Docker", "Kubernetes", "Serverless"],
-    "DevOps": ["CI/CD", "Docker", "Kubernetes", "Jenkins", "Terraform", "Ansible", "GitLab CI"],
-    "HTML": ["HTML5", "JSX"],
-    "CSS": ["CSS3", "SASS", "SCSS", "Tailwind CSS", "Bootstrap"]
-}
+# Curated skill list (for fallback)
+KNOWN_SKILLS = [
+    "Python", "JavaScript", "TypeScript", "Java", "C++", "C#", "Go", "Rust",
+    "React", "Angular", "Vue.js", "Next.js", "Django", "Flask", "Node.js",
+    "MySQL", "PostgreSQL", "MongoDB", "Redis", "AWS", "Azure", "GCP", "Docker",
+    "Kubernetes", "CI/CD", "Machine Learning", "Deep Learning", "SQL", "NoSQL"
+]
 
 def extract_text_from_file(file_path):
     ext = os.path.splitext(file_path)[1].lower()
+    text = ""
     if ext == '.pdf' and HAS_PYPDF2:
         try:
             reader = PdfReader(file_path)
-            text = ""
             for page in reader.pages:
                 text += page.extract_text() or ""
-            return text
-        except Exception:
-            return ""
+        except Exception: pass
+    elif ext == '.docx' and HAS_DOCX:
+        try:
+            doc = docx.Document(file_path)
+            text = "\n".join([para.text for para in doc.paragraphs])
+        except Exception: pass
     elif ext == '.txt':
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            return f.read()
-    return ""
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                text = f.read()
+        except Exception: pass
+    
+    # Clean formatting noise
+    text = re.sub(r'[^\x00-\x7F]+', ' ', text) # Remove non-ASCII
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+def calculate_resume_strength_score(structured_data, skills):
+    """
+    Formula:
+    0.4 × Skill Score + 0.2 × Experience Score + 0.2 × Project Score + 0.1 × Education Score + 0.1 × Certification Score
+    """
+    # 1. Skill Score (Diversity & Count)
+    skill_score = min((len(skills) / 10) * 100, 100)
+    
+    # 2. Experience Score
+    exp = structured_data.get('experience', {})
+    total_years = exp.get('total_years', 0)
+    experience_score = min((total_years / 5) * 100, 100) # Max score at 5 years
+    
+    # 3. Project Score
+    projects = structured_data.get('projects', [])
+    project_score = min(len(projects) * 25, 100) # Max score at 4 projects
+    
+    # 4. Education Score
+    edu = structured_data.get('education', [])
+    education_score = 100 if edu else 0
+    
+    # 5. Certification Score
+    certs = structured_data.get('certifications', [])
+    cert_score = min(len(certs) * 50, 100) # Max score at 2 certs
+
+    final_score = (0.4 * skill_score) + (0.2 * experience_score) + (0.2 * project_score) + (0.1 * education_score) + (0.1 * cert_score)
+    
+    breakdown = {
+        "skill_score": round(skill_score, 1),
+        "experience_score": round(experience_score, 1),
+        "project_score": round(project_score, 1),
+        "education_score": round(education_score, 1),
+        "certification_score": round(cert_score, 1)
+    }
+    
+    return round(final_score, 1), breakdown
 
 def analyze_resume(text):
-    """Extract skills from resume text using AI (Gemini) with a keyword-based fallback."""
-    found_skills = []
-    summary = ""
-    degree = ""
-    experience = ""
-    
-    # Try LLM first
-    if HAS_GEMINI:
-        try:
-            ai_data = analyze_resume_llm(text)
-            if ai_data:
-                found_skills = ai_data.get("skills", [])
-                summary = ai_data.get("summary", "")
-                degree = ai_data.get("degree", "")
-                experience = ai_data.get("experience", "")
-        except Exception:
-            pass
-
-    # Keyword matching fallback or supplementary
-    text_lower = text.lower()
-    for skill in KNOWN_SKILLS:
-        pattern = r'\b' + re.escape(skill.lower()) + r'\b'
-        if re.search(pattern, text_lower) and skill not in found_skills:
-            found_skills.append(skill)
-    
-    # Skills section heuristic
-    skills_section = re.search(r'skills?\s*[:\-\|]\s*(.+?)(?:\n\n|\Z)', text_lower, re.DOTALL | re.IGNORECASE)
-    if skills_section:
-        section_text = skills_section.group(1)
-        for skill in KNOWN_SKILLS:
-            if skill.lower() in section_text and skill not in found_skills:
-                found_skills.append(skill)
-    
-    if not found_skills:
-        found_skills = ["Python", "JavaScript", "SQL"]
-    
-    return {
-        "skills": sorted(list(set(found_skills))),
-        "summary": summary,
-        "degree": degree,
-        "experience": experience,
-        "raw_text": text
+    """Full production-level analysis pipeline."""
+    # Default fallback (empty or generic to avoid false 100% match)
+    result = {
+        "skills": [],
+        "summary": "AI extraction failed. Falling back to basic parsing.",
+        "structured_data": {"education": [], "experience": {"total_years": 0.0}, "projects": [], "certifications": []},
+        "explainability": {},
+        "resume_score": 0.0,
+        "score_breakdown": {}
     }
 
-def compare_skills(resume_skills, jd_text, resume_text=None):
-    """Compare resume against a job description. Uses LLM if provided text, else keyword match."""
-    # Try LLM-based deep comparison first
+    if HAS_GEMINI:
+        ai_data = analyze_resume_llm(text)
+        if ai_data:
+            result.update(ai_data)
+    
+    # Calculate score
+    score, breakdown = calculate_resume_strength_score(result['structured_data'], result['skills'])
+    result['resume_score'] = score
+    result['score_breakdown'] = breakdown
+    result['raw_text'] = text
+    
+    return result
+
+def compare_skills(resume_skills, jd_text, resume_text=None, role_title="Unspecified Role"):
+    """Role-specific job matching engine."""
+    match_res = None
     if HAS_GEMINI and resume_text:
-        try:
-            ai_comparison = compare_resume_jd_llm(resume_text, jd_text)
-            if ai_comparison:
-                return {
-                    "score": ai_comparison.get("match_score", 0),
-                    "matches": ai_comparison.get("matches", []),
-                    "missing": ai_comparison.get("missing", []),
-                    "insights": ai_comparison.get("insights", "")
-                }
-        except Exception as e:
-            print(f"AI Comparison Error: {e}")
+        match_res = calculate_job_fit_llm(resume_text, jd_text, role_title)
+    
+    if not match_res:
+        # Fallback to simple skill matching if AI fails or no resume text
+        matches = [s for s in resume_skills if s.lower() in jd_text.lower()]
+        missing = [s for s in KNOWN_SKILLS if s.lower() in jd_text.lower() and s not in matches]
+        match_score = (len(matches) / max(len(matches) + len(missing), 1)) * 100
+        match_res = {
+            "match_score": round(match_score, 1),
+            "matches": matches,
+            "missing": missing,
+            "insights": "Basic skill matching used (LLM unavailable or text missing)."
+        }
 
-    # Fallback/Manual Matching with Aliasing
-    jd_analysis = analyze_resume(jd_text)
-    jd_skills = sorted(list(set([s.strip() for s in jd_analysis['skills']])))
-    res_skills_lower = [s.strip().lower() for s in resume_skills]
-    
-    if not jd_skills:
-        return {"score": 0, "matches": [], "missing": [], "insights": "No specific skills detected in JD."}
-        
-    matches = []
-    missing = []
-    
-    for jd_s in jd_skills:
-        jd_s_lower = jd_s.lower()
-        
-        # 1. Direct match
-        if jd_s_lower in res_skills_lower:
-            matches.append(jd_s)
-            continue
-            
-        # 2. Alias group check (Generic requirement satisfied by specific skill)
-        # e.g., JD has "SQL", Resume has "MySQL"
-        matched_via_alias = False
-        if jd_s in SKILL_ALIASES:
-            for alias in SKILL_ALIASES[jd_s]:
-                if alias.lower() in res_skills_lower:
-                    matched_via_alias = True
-                    break
-        
-        if matched_via_alias:
-            matches.append(jd_s)
-            continue
-            
-        # 3. Reverse Alias check (Specific requirement satisfied by generic skill name or other alias)
-        # e.g., JD has "MySQL", Resume has "SQL"
-        for generic, specific_list in SKILL_ALIASES.items():
-            if jd_s == generic or jd_s in specific_list:
-                # If JD skill is in this group, check if generic or ANY specific from this group is in resume
-                if generic.lower() in res_skills_lower:
-                    matched_via_alias = True
-                    break
-                for s_alias in specific_list:
-                    if s_alias.lower() in res_skills_lower:
-                        matched_via_alias = True
-                        break
-            if matched_via_alias: break
-
-        if matched_via_alias:
-            matches.append(jd_s)
-            continue
-
-        # 4. Substring containment (for cases not in aliases, e.g. "React.js" vs "React")
-        is_sub_match = False
-        if len(jd_s_lower) > 3: # Avoid matching short things like "C" or "R"
-            for res_s_lower in res_skills_lower:
-                if len(res_s_lower) > 3 and (jd_s_lower in res_s_lower or res_s_lower in jd_s_lower):
-                    is_sub_match = True
-                    break
-        
-        if is_sub_match:
-            matches.append(jd_s)
-            continue
-            
-        missing.append(jd_s)
-    
-    # Base score using core matching
-    base_score = (len(matches) / len(jd_skills)) * 100 if jd_skills else 0
-    
-    # Add a small dynamic factor based on skill count to avoid "static" integer looks
-    bonus = min(len(res_skills_lower) * 0.5, 5.0) 
-    final_score = min(base_score + bonus, 100.0) if matches else base_score
-    
     return {
-        "score": round(final_score, 1),
-        "matches": matches,
-        "missing": missing,
-        "insights": "Profile Analysis: " + ("Strong match found." if final_score > 70 else "Moderate alignment. Consider highlighting missing skills.") + " (Note: Deep AI insights currently restricted by API connectivity)."
+        "match_score": match_res.get("match_score", 0),
+        "matching_skills": match_res.get("matches", []),
+        "missing_skills": match_res.get("missing", []),
+        "insights": match_res.get("insights", "No insights available.")
     }

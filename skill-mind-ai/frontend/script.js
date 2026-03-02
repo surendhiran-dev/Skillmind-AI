@@ -1085,12 +1085,82 @@
                     skillsPreview.innerHTML = state.activeResumeSkills.map(s => `<span class="tag">${s}</span>`).join('');
                 }
 
+                // Render Advanced Analysis
+                if (data.resume_score !== undefined) {
+                    $('#resumeAnalysisResult').classList.remove('hidden');
+                    $('#resAnalysisScore').textContent = Math.round(data.resume_score);
+
+                    // Render Breakdown
+                    const breakdown = data.score_breakdown || {};
+                    const breakdownEl = $('#resAnalysisBreakdown');
+                    breakdownEl.innerHTML = Object.entries(breakdown).map(([key, val]) => `
+                        <div class="breakdown-item">
+                            <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
+                                <span style="font-size: 0.85rem; font-weight: 600; text-transform: capitalize;">${key}</span>
+                                <span style="font-size: 0.8rem; color: var(--primary);">${Math.round(val)}%</span>
+                            </div>
+                            <div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                                <div style="width: ${val}%; height: 100%; background: var(--primary-gradient); transition: width 0.8s ease;"></div>
+                            </div>
+                        </div>
+                    `).join('');
+
+                    // Store entities for tab switching
+                    state.currentEntities = data.structured_data || {};
+                    renderEntities('edu'); // Default to Academic
+                }
+
                 showToast('Resume uploaded and analyzed!', 'success');
                 enforceFlow();
             } catch (err) {
                 statusEl.innerHTML = `❌ ${err.message || 'Upload failed'}`;
                 statusEl.className = 'upload-status error';
             }
+        }
+
+        // Tab Switching Logic
+        document.querySelectorAll('.btn-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.btn-tab').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                renderEntities(btn.dataset.tab);
+            });
+        });
+
+        function renderEntities(type) {
+            const container = $('#entityContent');
+            const entities = state.currentEntities || {};
+            let html = '';
+
+            if (type === 'edu') {
+                const edu = Array.isArray(entities.education) ? entities.education : (entities.education ? [entities.education] : []);
+                html = edu.length ? edu.map(e => `
+                    <div class="entity-item" style="margin-bottom: 1rem; border-left: 2px solid var(--primary); padding-left: 1rem;">
+                        <div style="font-weight: 700; color: #fff;">${e.degree || 'Degree Unknown'}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-muted);">${e.institution || 'Institution Unknown'}</div>
+                        ${e.year ? `<div style="font-size: 0.8rem; color: var(--primary);">${e.year}</div>` : ''}
+                    </div>
+                `).join('') : '<p style="color: var(--text-dim);">No educational data found.</p>';
+            } else if (type === 'exp') {
+                const exp = Array.isArray(entities.experience) ? entities.experience : (entities.experience ? [entities.experience] : []);
+                html = exp.length ? exp.map(e => `
+                    <div class="entity-item" style="margin-bottom: 1rem; border-left: 2px solid var(--accent); padding-left: 1rem;">
+                        <div style="font-weight: 700; color: #fff;">${e.role || 'Role Unknown'}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-muted);">${e.company || 'Company Unknown'}</div>
+                        ${e.duration ? `<div style="font-size: 0.8rem; color: var(--accent);">${e.duration}</div>` : ''}
+                    </div>
+                `).join('') : '<p style="color: var(--text-dim);">No professional experience data found.</p>';
+            } else if (type === 'proj') {
+                const proj = Array.isArray(entities.projects) ? entities.projects : (entities.projects ? [entities.projects] : []);
+                html = proj.length ? proj.map(p => `
+                    <div class="entity-item" style="margin-bottom: 1rem; border-left: 2px solid var(--warning); padding-left: 1rem;">
+                        <div style="font-weight: 700; color: #fff;">${p.name || 'Project Name Unknown'}</div>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">${p.description || ''}</p>
+                        ${p.technologies ? `<div style="margin-top: 5px;">${p.technologies.slice(0, 5).map(t => `<span class="tag xsmall-tag" style="font-size:10px; padding:2px 6px;">${t}</span>`).join('')}</div>` : ''}
+                    </div>
+                `).join('') : '<p style="color: var(--text-dim);">No project data found.</p>';
+            }
+            container.innerHTML = html;
         }
 
         $('#runCompareBtn')?.addEventListener('click', async () => {

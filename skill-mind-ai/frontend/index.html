@@ -376,6 +376,55 @@
                     <!-- Content here -->
                 </div>
             </div>
+
+            <!-- Advanced Candidate Profile Analysis (Extra Feature) -->
+            <div id="resumeAnalysisResult" class="card hidden" style="margin: 0 2rem 2rem;">
+                <div class="analysis-header"
+                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
+                    <div>
+                        <h3>Advanced Candidate Profile Analysis</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">AI-driven extraction
+                            results and candidate benchmarking</p>
+                    </div>
+                    <div class="overall-score-badge"
+                        style="background: var(--primary-gradient); padding: 12px 25px; border-radius: 15px; text-align: center; box-shadow: 0 10px 20px rgba(0, 212, 255, 0.2);">
+                        <div id="resAnalysisScore"
+                            style="font-size: 2rem; font-weight: 800; color: #fff; line-height:1;">0</div>
+                        <div
+                            style="font-size: 0.65rem; color: rgba(255,255,255,0.9); text-transform: uppercase; font-weight: 700; margin-top:5px; letter-spacing:1px;">
+                            Strength Score</div>
+                    </div>
+                </div>
+
+                <div class="analysis-grid" style="display: grid; grid-template-columns: 1fr 2fr; gap: 2.5rem;">
+                    <!-- Left: Breakdown -->
+                    <div class="analysis-left">
+                        <h4 style="margin-bottom: 1.2rem; font-size: 1.1rem; color: var(--primary);">Scoring Breakdown
+                        </h4>
+                        <div id="resAnalysisBreakdown" style="display: flex; flex-direction: column; gap: 1.2rem;">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Right: Structured Data -->
+                    <div class="analysis-right">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
+                            <h4 style="font-size: 1.1rem; color: var(--primary);">Extracted Knowledge Base</h4>
+                        </div>
+                        <div class="entity-tabs"
+                            style="display: flex; gap: 1px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 10px; margin-bottom: 1.5rem; width: fit-content;">
+                            <button class="btn-tab active" data-tab="edu">Academic</button>
+                            <button class="btn-tab" data-tab="exp">Experience</button>
+                            <button class="btn-tab" data-tab="proj">Projects</button>
+                        </div>
+                        <div id="entityContent"
+                            style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 15px; padding: 1.5rem; min-height: 250px;">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Quiz -->

@@ -2185,3 +2185,95 @@ body {
     text-shadow: 0 0 10px var(--primary-glow);
     opacity: 1 !important;
 }
+/* ===== Advanced Analysis UI ===== */
+#resumeAnalysisResult {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    transition: var(--transition);
+    margin-top: 2rem;
+}
+
+.overall-score-badge {
+    position: relative;
+    overflow: hidden;
+}
+
+.overall-score-badge::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    animation: pulse 4s infinite linear;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1) rotate(0deg);
+    }
+
+    100% {
+        transform: scale(1.2) rotate(360deg);
+    }
+}
+
+.btn-tab {
+    padding: 8px 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-tab:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.btn-tab.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.breakdown-item {
+    padding: 2px 0;
+}
+
+.entity-item {
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid transparent;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.entity-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--glass-border);
+    transform: translateX(8px);
+}
+
+.xsmall-tag {
+    font-size: 10px !important;
+    padding: 2px 8px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: var(--text-muted) !important;
+    margin-right: 4px;
+    border: 1px solid var(--glass-border);
+    display: inline-block;
+    margin-top: 4px;
+}
+
+/* Custom Gradients */
+:root {
+    --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+}

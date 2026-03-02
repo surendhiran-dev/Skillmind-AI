@@ -24,6 +24,13 @@ class Resume(db.Model):
     filename = db.Column(db.String(255))
     label = db.Column(db.String(50)) # e.g., 'resume1', 'resume2'
     extracted_text = db.Column(db.Text)
+    
+    # New Structured Fields
+    structured_data = db.Column(db.JSON) # education, experience, projects, certifications
+    resume_score = db.Column(db.Float, default=0.0)
+    score_breakdown = db.Column(db.JSON) # diversity, experience, projects, education, certification
+    skill_confidence = db.Column(db.JSON) # confidence scores and reasoning for each skill
+    
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Skill(db.Model):

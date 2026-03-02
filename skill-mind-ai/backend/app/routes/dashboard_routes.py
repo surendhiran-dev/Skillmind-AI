@@ -13,7 +13,7 @@ def get_stats():
     report = Score.query.filter_by(user_id=user_id).order_by(Score.generated_at.desc()).first()
 
     # History
-    quizzes = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.completed_at.desc()).limit(10).all()
+    quizzes = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.id.desc()).limit(10).all()
     coding_tests = CodingTest.query.filter_by(user_id=user_id).order_by(CodingTest.id.desc()).limit(10).all()
 
     # Skills
@@ -24,7 +24,7 @@ def get_stats():
 
     # Job Recommendations
     from ..services.ai_service import generate_job_recommendations_llm
-    job_recommendations = generate_job_recommendations_llm(skills, report.final_score if report else 0)
+    job_recommendations = generate_job_recommendations_llm(skills, report.final_score if report and hasattr(report, 'final_score') else 0)
 
     res = {
         "report": {
