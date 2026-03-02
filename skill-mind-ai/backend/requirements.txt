@@ -1,0 +1,9 @@
+flask
+flask-sqlalchemy
+flask-cors
+flask-jwt-extended
+flask-socketio
+python-dotenv
+werkzeug
+PyPDF2
+google-generativeai

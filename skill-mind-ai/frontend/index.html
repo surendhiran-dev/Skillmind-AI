@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Skill Mind AI - Intelligent Interview Capability Assessment and Predictive Skill Mapping System">
+    <title>Skill Mind AI | AI-Powered Career Growth</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>console.log("Skill Mind AI: HTML Head script running.");</script>
+</head>
+
+<body>
+    <!-- ========== AUTH VIEW ========== -->
+    <section id="authView" class="view active"
+        style="background: #1a1a2e; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; overflow: hidden;">
+
+        <!-- Brand Header -->
+        <div class="brand-header slide-element"
+            style="position: absolute; top: 40px; display: flex; align-items: center; gap: 15px; z-index: 100;">
+            <div class="logo-box"
+                style="width: 80px; height: 80px; background: transparent; border: 2px solid #00d4ff; border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(0, 212, 255, 0.2); padding: 5px; overflow: hidden;">
+                <img src="assets/logo.png" alt="Skill Mind AI Logo"
+                    style="width: 100%; height: 100%; object-fit: contain;">
+            </div>
+            <h1
+                style="color: #fff; font-size: 28px; font-weight: 700; letter-spacing: 2px; margin: 0; text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);">
+                SKILL MIND <span style="color: #00d4ff;">AI</span></h1>
+        </div>
+
+        <div class="auth-wrapper">
+            <div class="background-shape"></div>
+            <div class="secondary-shape"></div>
+            <div class="credentials-panel signin">
+                <h2 class="slide-element">Login</h2>
+                <div id="loginError" class="auth-error hidden" style="position:relative; z-index:10; margin-top:10px;">
+                </div>
+                <form action="#" id="loginFormInner">
+                    <div class="field-wrapper slide-element">
+                        <input type="text" id="loginUsername" autocomplete="off" required>
+                        <label for="">Username</label>
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+
+                    <div class="field-wrapper slide-element">
+                        <input type="password" id="loginPassword" autocomplete="off" required>
+                        <label for="">Password</label>
+                        <i class="fa-solid fa-lock"></i>
+                        <i class="fa-solid fa-eye toggle-password" data-target="loginPassword"
+                            style="cursor: pointer; right: 25px; font-size: 14px; opacity: 0.7;"></i>
+                    </div>
+
+                    <div class="forgot-link slide-element">
+                        <a href="#" id="forgotPasswordTrigger">Forgot Password?</a>
+                    </div>
+
+                    <div class="field-wrapper slide-element">
+                        <button class="submit-button" type="submit">Login</button>
+                    </div>
+
+                    <div class="switch-link slide-element">
+                        <p>Don't have an account? <br> <a href="#" class="register-trigger" id="showRegister">Sign
+                                Up</a></p>
+                    </div>
+                </form>
+
+                <!-- Forgot Password Form (Hidden) -->
+                <form action="#" id="forgotPasswordForm" class="hidden" novalidate>
+                    <div class="form-header slide-element" style="margin-bottom: 25px;">
+                        <h2 style="font-size: 24px; color: #fff; margin-bottom: 8px;">Reset Password</h2>
+                        <p id="forgotStepDesc" style="font-size: 13px; color: var(--text-muted);">Enter your email to
+                            receive a secure reset OTP.</p>
+                    </div>
+
+                    <div id="forgotError" class="auth-error hidden"></div>
+
+                    <div class="field-wrapper slide-element">
+                        <input type="email" id="forgotEmail" name="forgotEmail" autocomplete="off" required>
+                        <label for="forgotEmail">Email Address</label>
+                        <i class="fa-solid fa-envelope"></i>
+                    </div>
+                    <div id="forgotEmailWarning" class="field-warning hidden"
+                        style="color: var(--danger); font-size: 11px; margin-top: -15px; margin-bottom: 10px;">Please
+                        enter a valid email.</div>
+
+                    <div class="field-wrapper slide-element hidden" id="resetOtpWrapper">
+                        <input type="text" id="resetOTP" name="resetOTP" autocomplete="off" maxlength="6" required>
+                        <label for="resetOTP">OTP Code</label>
+                        <i class="fa-solid fa-key"></i>
+                        <div id="resetOtpTimer"
+                            style="position: absolute; right: 40px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--primary); font-weight: 600;">
+                        </div>
+                        <button type="button" id="resendResetOtp" class="hidden"
+                            style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--primary); cursor: pointer; font-size: 12px; font-weight: 600; padding: 5px;">Resend</button>
+                    </div>
+
+                    <div class="field-wrapper slide-element hidden" id="resetPasswordWrapper">
+                        <input type="password" id="resetNewPassword" name="resetNewPassword" autocomplete="off"
+                            required>
+                        <label for="resetNewPassword">New Password</label>
+                        <i class="fa-solid fa-lock"></i>
+                        <i class="fa-solid fa-eye toggle-password" data-target="resetNewPassword"
+                            style="cursor: pointer; right: 25px; font-size: 14px; opacity: 0.7;"></i>
+                    </div>
+
+                    <div class="field-wrapper slide-element hidden" id="resetConfirmPasswordWrapper">
+                        <input type="password" id="resetConfirmPassword" name="resetConfirmPassword" autocomplete="off"
+                            required>
+                        <label for="resetConfirmPassword">Confirm Password</label>
+                        <i class="fa-solid fa-lock"></i>
+                        <i class="fa-solid fa-eye toggle-password" data-target="resetConfirmPassword"
+                            style="cursor: pointer; right: 25px; font-size: 14px; opacity: 0.7;"></i>
+                    </div>
+                    <div id="resetPasswordWarning" class="field-warning hidden"
+                        style="color: var(--danger); font-size: 11px; margin-top: -15px; margin-bottom: 10px;">Password
+                        too weak.</div>
+
+                    <div class="field-wrapper slide-element">
+                        <button type="submit" class="btn-primary slide-element" id="forgotSubmitBtn">Send OTP</button>
+                    </div>
+                    <div class="switch-link slide-element" style="margin-top: 20px;">
+                        <a href="#" id="backToLogin"
+                            style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); text-decoration: none; transition: 0.3s;">
+                            <i class="fa-solid fa-arrow-left" style="font-size: 11px;"></i> Back to Sign In
+                        </a>
+                    </div>
+                </form>
+            </div>
+
+            <div class="welcome-section signin" id="welcomeSignIn">
+                <h2 class="slide-element">WELCOME BACK!</h2>
+            </div>
+
+            <div class="credentials-panel signup">
+                <h2 class="slide-element">Register</h2>
+                <div id="regError" class="auth-error hidden" style="position:relative; z-index:10; margin-top:10px;">
+                </div>
+                <form action="#" id="registerFormInner">
+                    <div class="field-wrapper slide-element">
+                        <input type="text" id="regUsername" autocomplete="off" required>
+                        <label for="">Username</label>
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+
+                    <div class="field-wrapper slide-element">
+                        <input type="email" id="regEmail" autocomplete="off" required>
+                        <label for="">Email</label>
+                        <i class="fa-solid fa-envelope"></i>
+                    </div>
+
+                    <div class="field-wrapper slide-element" id="otpWrapper">
+                        <input type="text" id="regOTP" autocomplete="off" required>
+                        <label for="">OTP Code</label>
+                        <i class="fa-solid fa-key"></i>
+                        <div id="otpTimerWrap"
+                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px;">
+                            <span id="otpCountdown"
+                                style="color: #00d4ff; font-size: 12px; font-weight: 600; display: none;">60s</span>
+                            <button type="button" id="sendOtpBtn"
+                                style="background: var(--primary); border: none; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; display: none;">Send
+                                OTP</button>
+                        </div>
+                    </div>
+
+                    <div class="field-wrapper slide-element">
+                        <input type="password" id="regPassword" autocomplete="off" required>
+                        <label for="">Password</label>
+                        <i class="fa-solid fa-lock"></i>
+                        <i class="fa-solid fa-eye toggle-password" data-target="regPassword"
+                            style="cursor: pointer; right: 25px; font-size: 14px; opacity: 0.7;"></i>
+                    </div>
+
+                    <div id="password-strength" class="strength-meter slide-element"
+                        style="height: 5px; margin-top: 5px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden; transition: 0.3s; opacity: 0;">
+                        <div id="strength-bar" style="height: 100%; width: 0%; transition: 0.4s;"></div>
+                        <small id="strength-text"
+                            style="color: #fff; font-size: 10px; display: block; margin-top: 2px;"></small>
+                    </div>
+
+                    <div class="field-wrapper slide-element">
+                        <button class="submit-button" type="submit">Register</button>
+                    </div>
+
+                    <div class="switch-link slide-element">
+                        <p>Already have an account? <br> <a href="#" class="login-trigger" id="showLogin">Sign In</a>
+                        </p>
+                    </div>
+                </form>
+            </div>
+
+            <div class="welcome-section signup">
+                <h2 class="slide-element">WELCOME!</h2>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== MAIN APP VIEW ========== -->
+    <section id="mainView" class="view hidden">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="logo"><img src="assets/logo.png" alt="Logo"
+                    style="height: 32px; vertical-align: middle; margin-right: 10px; border-radius: 4px;">Skill Mind
+                <span>AI</span>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link active" data-view="dashboard">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1" />
+                        <rect x="14" y="3" width="7" height="7" rx="1" />
+                        <rect x="3" y="14" width="7" height="7" rx="1" />
+                        <rect x="14" y="14" width="7" height="7" rx="1" />
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="#" class="nav-link" data-view="resume">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    Resume
+                </a>
+                <a href="#" class="nav-link" data-view="quiz">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    Quiz
+                </a>
+                <a href="#" class="nav-link" data-view="coding">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 18 22 12 16 6" />
+                        <polyline points="8 6 2 12 8 18" />
+                    </svg>
+                    Coding
+                </a>
+                <a href="#" class="nav-link" data-view="interview">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    Interview
+                </a>
+            </div>
+            <div class="nav-right">
+                <span id="userGreeting" class="user-greeting"></span>
+                <button class="btn-ghost" id="logoutBtn">Logout</button>
+            </div>
+        </nav>
+
+        <!-- Dashboard -->
+        <div id="dashboardPage" class="page active">
+            <div class="page-header">
+                <h1>Performance Dashboard</h1>
+                <p>Track your interview readiness and skill growth</p>
+            </div>
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon si-orange">📄</div>
+                    <div class="stat-info">
+                        <span class="stat-value"><span id="statResume">0</span>/10</span>
+                        <span class="stat-label">Resume Marks</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon si-purple">📝</div>
+                    <div class="stat-info">
+                        <span class="stat-value"><span id="statQuiz">0</span>/30</span>
+                        <span class="stat-label">Quiz Marks</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon si-blue">💻</div>
+                    <div class="stat-info">
+                        <span class="stat-value"><span id="statCoding">0</span>/30</span>
+                        <span class="stat-label">Coding Marks</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon si-green">🎙️</div>
+                    <div class="stat-info">
+                        <span class="stat-value"><span id="statInterview">0</span>/30</span>
+                        <span class="stat-label">Interview Marks</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon si-accent">🏆</div>
+                    <div class="stat-info">
+                        <span class="stat-value"><span id="statFinal">0</span>/100</span>
+                        <span class="stat-label">Total Marks</span>
+                    </div>
+                </div>
+            </div>
+            <div class="dashboard-grid">
+                <div class="card chart-card">
+                    <h3>Skill Radar</h3>
+                    <canvas id="radarChart"></canvas>
+                </div>
+                <div class="card chart-card">
+                    <h3>Progress Over Time</h3>
+                    <canvas id="lineChart"></canvas>
+                </div>
+                <div class="card">
+                    <h3>Skill Gaps</h3>
+                    <ul id="skillGapsList" class="gap-list">
+                        <li class="placeholder-text">Complete assessments to see gaps</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>Extracted Skills</h3>
+                    <div id="dashboardSkills" class="tags-container">
+                        <span class="placeholder-text">Upload a resume to see skills</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card" style="margin: 0 2rem 2rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3>Overall Readiness</h3>
+                    <button class="btn-primary" id="generateReportBtn">Generate Report</button>
+                </div>
+                <div class="readiness-bar-wrap">
+                    <div class="readiness-bar" id="readinessBar" style="width: 0%"></div>
+                </div>
+                <p id="readinessText" class="readiness-text">Complete all assessments to see your readiness score.
+                </p>
+            </div>
+        </div>
+
+        <!-- Resume Upload -->
+        <div id="resumePage" class="page hidden">
+            <div class="page-header">
+                <h1>Resume & JD Analysis</h1>
+                <p>Upload your resume and a job description to extract tailored insights</p>
+            </div>
+            <div class="resume-jd-layout">
+                <!-- Resume Section -->
+                <div class="card resume-upload-card">
+                    <h3>Resume</h3>
+                    <div class="upload-zone" id="resumeDropZone">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
+                            stroke-width="1.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        <p id="resumeFileName">Drag & drop or click to choose</p>
+                        <input type="file" id="resumeFileInput" accept=".pdf,.docx,.txt" hidden>
+                        <button class="btn-primary btn-sm"
+                            onclick="document.getElementById('resumeFileInput').click()">Choose File</button>
+                    </div>
+                    <div id="resumeUploadStatus" class="upload-status hidden"></div>
+                    <div id="resumeSkillsPreview" class="tags-container small-tags"></div>
+                </div>
+
+                <!-- JD Section -->
+                <div class="card jd-input-card">
+                    <h3>Job Description</h3>
+                    <textarea id="jdTextArea" class="jd-textarea"
+                        placeholder="Paste the job description here..."></textarea>
+                    <button class="btn-primary btn-full" id="runCompareBtn">Compare & Sync Assessments</button>
+                </div>
+            </div>
+
+            <!-- Comparison Result -->
+            <div id="jdAnalysisResult" class="card hidden" style="margin: 0 2rem 2rem;">
+                <h3>JD Match Analysis</h3>
+                <div id="jdAnalysisContent" class="comparison-content">
+                    <!-- Content here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Quiz -->
+        <div id="quizPage" class="page hidden">
+            <div class="page-header">
+                <h1>Technical Quiz</h1>
+                <p>AI-generated questions based on your skill profile</p>
+            </div>
+            <div class="quiz-container">
+                <div id="quizStart" class="card quiz-start-card">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
+                        stroke-width="1.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    <h2>Ready for the Challenge?</h2>
+                    <p>We'll generate 15 technical questions based on your resume and JD skills. Each question carries 2
+                        marks (Total: 30 marks).</p>
+                    <button class="btn-primary" id="startQuizBtn">Start Quiz</button>
+                </div>
+                <div id="quizActive" class="hidden">
+                    <div class="quiz-progress">
+                        <div class="quiz-progress-bar" id="quizProgressBar"></div>
+                    </div>
+                    <div class="card quiz-question-card">
+                        <div class="quiz-header">
+                            <span id="questionCounter">Question 1 / 5</span>
+                            <div class="timer-wrap">
+                                <div class="timer-ring"></div>
+                                <span id="quizTimer">90s</span>
+                            </div>
+                            <span class="quiz-skill-tag" id="questionSkill">Python</span>
+                        </div>
+                        <h2 id="questionText"></h2>
+                        <textarea id="answerInput" class="quiz-textarea"
+                            placeholder="Type your answer here..."></textarea>
+                        <div class="quiz-actions">
+                            <button class="btn-secondary" id="skipQuestionBtn">Skip</button>
+                            <button class="btn-primary" id="nextQuestionBtn">Submit Answer</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="quizResult" class="card quiz-result-card hidden">
+                    <div class="result-icon">🎉</div>
+                    <h2>Quiz Complete!</h2>
+                    <div class="result-score" id="quizScoreDisplay">--</div>
+                    <p id="quizFeedback"></p>
+                    <button class="btn-primary" id="retakeQuizBtn">Retake Quiz</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coding -->
+        <div id="codingPage" class="page hidden">
+            <div class="page-header">
+                <h1>Coding Assessment</h1>
+
+            </div>
+
+            <!-- Start Screen -->
+            <div id="codingStart" class="card"
+                style="max-width:600px; margin:2rem auto; text-align:center; padding:3rem;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5"
+                    style="margin-bottom:1rem;">
+                    <polyline points="16 18 22 12 16 6"></polyline>
+                    <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+                <h2>Ready to Code?</h2>
+                <p>You'll solve 6 Python challenges based on your resume and JD skills. Each question carries 5 marks
+                    (Total: 30 marks).</p>
+                <button class="btn-primary" id="startCodingBtn">Start Coding Assessment</button>
+            </div>
+
+            <!-- Active Coding -->
+            <div id="codingActive" class="hidden" style="padding:0 2rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <span id="codingProgress">Question 1 / 6</span>
+                    <span id="codingMarksTracker" style="font-weight:700; color:var(--accent);">Marks: 0/30</span>
+                </div>
+                <div class="progress-bar" style="margin-bottom:1.5rem;">
+                    <div id="codingProgressBar" class="progress-fill" style="width:0%"></div>
+                </div>
+                <div class="coding-layout">
+                    <div class="coding-main" style="width:100%;">
+                        <div class="card coding-problem">
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                                <h3 id="currentProblemTitle">Problem Title</h3>
+                                <span id="currentProblemDifficulty" class="badge">--</span>
+                            </div>
+                            <div id="codingProblem" class="problem-text"></div>
+                            <div id="codingHintsWrap" class="coding-hints hidden">
+                                <h4>Hints</h4>
+                                <ul id="codingHints"></ul>
+                            </div>
+                        </div>
+                        <div class="coding-editor-wrap">
+                            <div class="editor-toolbar">
+                                <span>Python 3 — <strong id="codingQuestionLabel">Q1</strong> (5 marks)</span>
+                                <button class="btn-ghost btn-sm" id="resetCodeBtn">Reset</button>
+                            </div>
+                            <textarea id="codeEditor" class="code-editor" spellcheck="false"></textarea>
+                            <div class="editor-actions">
+                                <button class="btn-secondary" id="runCodeBtn">Run Tests</button>
+                                <button class="btn-primary" id="submitCodeBtn">Submit & Next →</button>
+                            </div>
+                            <div id="codeOutput" class="code-output hidden">
+                                <h4>Results</h4>
+                                <pre id="codeOutputText"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result Screen -->
+            <div id="codingResult" class="hidden card"
+                style="max-width:600px; margin:2rem auto; text-align:center; padding:3rem;">
+                <h2>🏆 Coding Assessment Complete!</h2>
+                <div class="score-display"
+                    style="font-size:3rem; font-weight:800; color:var(--primary); margin:1rem 0;">
+                    <span id="codingScoreDisplay">0/30</span>
+                </div>
+                <p id="codingFeedback" style="color:var(--text-muted); margin-bottom:1.5rem;"></p>
+                <div id="codingResultDetails" style="text-align:left; margin-bottom:1.5rem;"></div>
+                <button class="btn-primary" id="retakeCodingBtn">Retake Assessment</button>
+            </div>
+        </div>
+
+        <!-- Interview -->
+        <div id="interviewPage" class="page hidden">
+            <div class="page-header">
+                <h1>AI HR Interview</h1>
+                <p>Real-time conversational interview powered by AI</p>
+            </div>
+            <div class="interview-layout">
+                <div class="chat-container card">
+                    <div id="chatMessages" class="chat-messages">
+                        <div class="chat-welcome">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
+                                stroke-width="1.5">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </svg>
+                            <h3>AI Interview Room</h3>
+                            <p>Click "Start Interview" to begin your AI-powered HR interview session.</p>
+                            <button class="btn-primary" id="startInterviewBtn">Start Interview</button>
+                        </div>
+                    </div>
+                    <div class="chat-input-wrap hidden" id="chatInputWrap">
+                        <input type="text" id="chatInput" class="chat-input" placeholder="Type your response...">
+                        <button class="btn-primary chat-send" id="sendMsgBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13" />
+                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="interview-sidebar">
+                    <div class="card">
+                        <h3>Interview Tips</h3>
+                        <ul class="tips-list">
+                            <li>Be specific and use examples</li>
+                            <li>Structure answers using STAR method</li>
+                            <li>Show enthusiasm and curiosity</li>
+                            <li>Ask clarifying questions when needed</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Live Sentiment</h3>
+                        <div class="sentiment-display">
+                            <div class="sentiment-emoji" id="sentimentEmoji">😐</div>
+                            <span id="sentimentLabel">Neutral</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Visme Embed Script -->
+    <!-- Success Modal -->
+    <div id="resetSuccessModal" class="modal-overlay hidden">
+        <div class="modal-content card">
+            <div class="success-icon-wrapper">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h2>Password Reset Successful!</h2>
+            <p>Your password has been changed successfully. You can now use your new password to sign in.</p>
+            <button class="btn-primary" id="resetSuccessOkBtn">Back to Login</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
