@@ -1,16 +1,16 @@
 import os
 import json
+import logging
+import functools
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # BERT-based NER structure for resume skill extraction
 # T5-based sequence-to-sequence structure for quiz question generation
 # Transformer-based evaluation model for coding logic
 # Transformer-based follow-up generation for HR interview
-
-import logging
-import google.generativeai as genai
-from dotenv import load_dotenv
-
-load_dotenv()
 
 HAS_GEMINI = False
 
@@ -86,39 +86,36 @@ def get_mock_response(prompt):
     return "AI service unavailable."
 
 def analyze_resume_llm(resume_text):
-    """Use AI to extract structured entities, skills, and explainable insights from resume text."""
-    if not HAS_GEMINI:
-        return None
-
-    system_prompt = "You are an expert HR and recruitment AI specializing in BERT-based Named Entity Recognition (NER) and Skill Taxonomy mapping."
+    system_prompt = "You are a production-level Recruiting AI specializing in Spacy/BERT-based NER and Skill Taxonomy normalization."
     prompt = f"""
-    Perform deep structured extraction on this resume text. 
-    Target Entities:
-    - Technical Skills (Programming, Frameworks, Tools)
-    - Education (Degrees, Institutions, Completion Year)
-    - Experience (Total years, key roles, and company names)
-    - Projects (Titles and brief descriptions)
-    - Certifications (Official titles)
-
-    Explainability Requirement:
-    For every Technical Skill extracted, provide:
-    1. A confidence score (0-1.0)
-    2. Reasoning (e.g., 'Found in Skills section' or 'Inferred from project experience')
-    3. The exact sentence reference from the text.
+    Perform deep contextual extraction on this resume text. 
+    Requirements:
+    1. Technical Skills: Extract and NORMALIZE (e.g., 'ML' -> 'Machine Learning').
+    2. Soft Skills: Extract interpersonal and leadership traits.
+    3. Experience: Total years (float) and roles with duration.
+    4. Education: Normalized degree levels.
+    5. Confidence Score: (0.0-1.0) for every skill extracted.
 
     Return the result ONLY as a JSON object with this EXACT structure:
     {{
+        "technical_skills": [{{ "skill": "Python", "confidence": 0.98, "reasoning": "Direct mention in skills section" }}],
+        "soft_skills": [{{ "skill": "Leading Teams", "confidence": 0.85, "reasoning": "Derived from Project Manager role" }}],
+        "experience_years": 4.5,
+        "education": "Masters in CS",
         "structured_data": {{
             "education": [{{ "degree": "...", "institution": "...", "year": "..." }}],
-            "experience": {{ "total_years": 0.0, "roles": [{{ "title": "...", "company": "...", "duration": "..." }}] }},
+            "experience": {{ "total_years": 4.5, "roles": [{{ "title": "...", "company": "...", "duration": "..." }}] }},
             "projects": [{{ "name": "...", "description": "...", "technologies": [] }}],
             "certifications": ["Cert 1"]
         }},
-        "skills": ["Skill 1", "Skill 2"],
-        "explainability": {{
-            "Skill 1": {{ "confidence": 0.95, "reasoning": "...", "reference": "..." }}
-        }},
-        "summary": "Professional summary..."
+        "summary": "Professional executive summary...",
+        "scores": {{
+            "technical": 85,
+            "projects": 90,
+            "experience": 75,
+            "education": 100,
+            "certifications": 80
+        }}
     }}
 
     Resume Text:
@@ -129,10 +126,67 @@ def analyze_resume_llm(resume_text):
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            return json.loads(clean_json)
+            res = json.loads(clean_json)
+            # Ensure backward compatibility and weighted components
+            res['skills'] = [s['skill'] if isinstance(s, dict) else s for s in res.get('technical_skills', [])]
+            res['score_components'] = res.get('scores', {
+                "technical": 70, "projects": 50, "experience": 60, "education": 80, "certifications": 40
+            })
+            return res
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {e}")
     return None
+
+def analyze_match_explanation_llm(resume_text, jd_text, match_score):
+    """Calculate specific skill contributions and gaps for explainability."""
+    if not HAS_GEMINI:
+        return []
+
+    prompt = f"""
+    Analyze the match between the resume and JD. Match Score is {match_score}%.
+    Identify the top 3 skills that contributed MOST to this score and the top 3 MISSING skills that reduced it most.
+    Assign a 'contribution_impact' percentage to each.
+
+    Resume: {resume_text[:2000]}
+    JD: {jd_text[:2000]}
+
+    Return ONLY a JSON array:
+    [
+        {{ "skill": "Python", "type": "contributor", "impact": 25, "reason": "Exact match for primary requirement" }},
+        {{ "skill": "System Design", "type": "gap", "impact": -15, "reason": "Critical missing architecture skill" }}
+    ]
+    """
+    response_text = call_gemini(prompt, "You are an explainable AI (XAI) engine for recruiter transparency.")
+    if response_text:
+        try:
+            clean_json = response_text.replace('```json', '').replace('```', '').strip()
+            return json.loads(clean_json)
+        except: pass
+    return []
+
+def generate_skill_gap_recommendations_llm(missing_skills):
+    """Suggest targeted learning paths for missing skills."""
+    if not HAS_GEMINI or not missing_skills:
+        return []
+
+    prompt = f"""
+    For these missing skills: {', '.join(missing_skills)}
+    Suggest 3 targeted learning actions. For each, include:
+    1. Course/Platform (Coursera, Udemy, etc.)
+    2. Estimated 'Match Boost' percentage if completed.
+
+    Return ONLY a JSON array:
+    [
+        {{ "skill": "System Design", "platform": "Educative.io", "boost": 15, "action": "Master high-level architecture patterns" }}
+    ]
+    """
+    response_text = call_gemini(prompt, "You are a technical career development coach.")
+    if response_text:
+        try:
+            clean_json = response_text.replace('```json', '').replace('```', '').strip()
+            return json.loads(clean_json)
+        except: pass
+    return []
 
 def generate_quiz_llm(skills, jd_text=""):
     """Generate professional technical questions based on skills and Optional JD."""
@@ -234,7 +288,8 @@ def generate_job_recommendations_llm(skills, readiness_score=None):
             logger.error(f"Error parsing job recommendations: {e}")
     return []
 
-def calculate_job_fit_llm(resume_text, jd_text, role_title):
+@functools.lru_cache(maxsize=50)
+def calculate_job_fit_llm(resume_text, jd_text, role_title="Specified Role"):
     """Calculate job fit using semantic comparison and Cosine Similarity logic."""
     if not HAS_GEMINI:
         return None
@@ -244,20 +299,32 @@ def calculate_job_fit_llm(resume_text, jd_text, role_title):
     Compare the Resume against the Job Description for the role: {role_title}.
     
     Analysis Model:
-    1. Calculate a decimal Job Match Score (0.0 - 100.0) based on semantic Cosine Similarity.
-    2. Identify Matching Skills (explicit and semantic matches).
-    3. Identify Missing Skills (critical for the role).
-    4. Provide 3-5 'Recommended Skills to Learn' to close the gap.
+    1. Overall Match Score: Calculate a precise percentage (0.0 - 100.0).
+    2. Breakdown Scores: Provide individual scores for:
+       - Technical Skills (40% weight)
+       - Experience (30% weight)
+       - Education (20% weight)
+       - Soft Skills (10% weight)
+    3. Skill Tables: For each 'match' and 'missing' skill, include:
+       - 'weight': (0.0 - 1.0) relative importance.
+       - 'impact': (0.0 - 100.0) contribution to its category.
+       - 'priority': 'High', 'Medium', or 'Low' for missing skills.
 
-    Resume Text: {resume_text}
-    Job Description: {jd_text}
+    Resume Text: {resume_text[:3000]}
+    Job Description: {jd_text[:3000]}
 
     Return ONLY a JSON object:
     {{
-        "match_percentage": 85.5,
-        "matches": ["Skill A", "Skill B"],
-        "missing": ["Skill D"],
-        "recommendations": ["Learn Framework X", "Master Tool Y"]
+        "match_percentage": 78.5,
+        "breakdown": {{
+            "technical": 82,
+            "experience": 70,
+            "education": 85,
+            "soft_skills": 65
+        }},
+        "matches": [{{ "skill": "Python", "weight": 0.9, "impact": 15 }}],
+        "missing": [{{ "skill": "Docker", "weight": 0.8, "impact": 10, "priority": "High" }}],
+        "recommendations": ["Learn Docker and CI/CD"]
     }}
     """
     
@@ -266,15 +333,17 @@ def calculate_job_fit_llm(resume_text, jd_text, role_title):
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
             res = json.loads(clean_json)
-            # Align with internal service and routes keys
+            # Align with internal service and routes keys - PRESERVE METADATA
             return {
                 "match_score": res.get("match_percentage", 0),
+                "breakdown": res.get("breakdown", {}),
                 "matches": res.get("matches", []),
                 "missing": res.get("missing", []),
-                "insights": "\n".join(res.get("recommendations", [])) if isinstance(res.get("recommendations"), list) else res.get("recommendations", "")
+                "recommendations": res.get("recommendations", [])
             }
         except Exception as e:
             logger.error(f"Error parsing job fit: {e}")
+            
     return {
         "match_score": 0,
         "matches": [],
@@ -288,9 +357,39 @@ def compare_resume_jd_llm(resume_text, jd_text):
     res = calculate_job_fit_llm(resume_text, jd_text, "Unspecified Role")
     if res:
         return {
-            "match_score": res["match_percentage"],
+            "match_score": res["match_score"],
             "matches": res["matches"],
             "missing": res["missing"],
             "insights": "Real-time AI matching completed."
         }
     return None
+def generate_skill_gap_recommendations_llm(missing_skills):
+    """
+    Generate strategic advice for candidates based on missing skills.
+    Includes projected improvements.
+    """
+    if not HAS_GEMINI or not missing_skills:
+        return []
+
+    system_prompt = "You are a senior technical recruiter and career coach."
+    prompt = f"""
+    Based on these missing skills: {missing_skills}, provide 3-4 specific, high-impact recommendations.
+    For each, include a projected match percentage increase if the skill is acquired.
+    
+    Return ONLY a JSON array of objects:
+    [
+      {{ "text": "Learn Docker for containerization", "projected_increase": 5 }},
+      {{ "text": "Master AWS Lambda for serverless architecture", "projected_increase": 8 }}
+    ]
+    """
+    
+    response_text = call_gemini(prompt, system_prompt)
+    if response_text:
+        try:
+            clean_json = response_text.replace('```json', '').replace('```', '').strip()
+            return json.loads(clean_json)
+        except Exception as e:
+            logger.error(f"Error parsing recommendations: {e}")
+    
+    # Simple fallback
+    return [{"text": f"Gain proficiency in {s}", "projected_increase": 5} for s in missing_skills[:3]]

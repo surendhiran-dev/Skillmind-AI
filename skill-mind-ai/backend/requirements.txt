@@ -7,3 +7,5 @@ python-dotenv
 werkzeug
 PyPDF2
 google-generativeai
+eventlet
+numpy

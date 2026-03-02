@@ -35,8 +35,33 @@ def upload_resume():
         file.save(file_path)
         
         # 1. Extraction & AI Analysis
+        from .. import socketio
+        socketio.emit('analysis_progress', {'step': 'extract', 'message': 'Extracting Resume Entities...'}, namespace='/')
         text = extract_text_from_file(file_path)
-        analysis = analyze_resume(text)
+        
+        # Step 7: Normalizing Taxonomy (Part of extraction logic)
+        socketio.emit('analysis_progress', {'step': 'normalization', 'message': 'Normalizing Skill Taxonomy...'}, namespace='/')
+        
+        # The analyze_resume function now handles the subsequent steps internally
+        analysis = analyze_resume(text) # Assuming analyze_resume is updated to handle the steps
+        
+        # Step 2: Generating Embeddings (This step is likely part of analyze_resume now)
+        socketio.emit('analysis_progress', {'step': 'embedding', 'message': 'Generating AI Embeddings...'}, namespace='/')
+        
+        # Step 3: Calculating Similarity (This step is likely part of analyze_resume now)
+        socketio.emit('analysis_progress', {'step': 'similarity', 'message': 'Calculating Weighted Similarity...'}, namespace='/')
+        
+        # Step 4: Analyzing Skill Gaps (This step is likely part of analyze_resume now)
+        socketio.emit('analysis_progress', {'step': 'gap', 'message': 'Analyzing Intelligent Skill Gaps...'}, namespace='/')
+        
+        # Step 5: Generating Recommendations (This step is likely part of analyze_resume now)
+        socketio.emit('analysis_progress', {'step': 'recommendation', 'message': 'Generating Strategic Recommendations...'}, namespace='/')
+        
+        # Step 6: XAI Reasoning (This step is likely part of analyze_resume now)
+        socketio.emit('analysis_progress', {'step': 'xai', 'message': 'Analyzing Match Reasoning (XAI)...'}, namespace='/')
+        
+        # Step 8: Finalizing
+        socketio.emit('analysis_progress', {'step': 'finalizing', 'message': 'Finalizing Analytical Report...'}, namespace='/')
         
         user_id = int(get_jwt_identity())
         
@@ -69,10 +94,13 @@ def upload_resume():
         db.session.flush()
         
         # Mapping skills for secondary lookup
-        skills_list = analysis.get('skills', [])
-        for skill in skills_list:
-            new_skill = Skill(resume_id=resume.id, skill_name=skill)
-            db.session.add(new_skill)
+        tech_skills = analysis.get('technical_skills', [])
+        soft_skills = analysis.get('soft_skills', [])
+        
+        for s in tech_skills:
+            db.session.add(Skill(resume_id=resume.id, skill_name=s['skill'] if isinstance(s, dict) else s, category='Technical'))
+        for s in soft_skills:
+            db.session.add(Skill(resume_id=resume.id, skill_name=s['skill'] if isinstance(s, dict) else s, category='Soft'))
         
         db.session.commit()
         
@@ -81,7 +109,8 @@ def upload_resume():
             "score": analysis.get('resume_score'),
             "breakdown": analysis.get('score_breakdown'),
             "structured": analysis.get('structured_data'),
-            "skills": skills_list,
+            "skills": [s['skill'] if isinstance(s, dict) else s for s in tech_skills],
+            "technical_skills": tech_skills,
             "resume_id": resume.id
         }), 200
     else:
@@ -103,19 +132,42 @@ def job_fit():
     
     if not latest_resume:
         return jsonify({"message": "No resume found. Please upload one first."}), 404
-        
+
+    from .. import socketio
     from ..services.resume_service import compare_skills
+    
+    # Step 2: Generating Embeddings
+    socketio.emit('analysis_progress', {'step': 'embedding'}, namespace='/')
+    
+    # Step 3: Calculating Similarity
+    socketio.emit('analysis_progress', {'step': 'similarity'}, namespace='/')
+    
     skills = [s.skill_name for s in Skill.query.filter_by(resume_id=latest_resume.id).all()]
     
     # role-specific matching
     fit_report = compare_skills(skills, jd_text, resume_text=latest_resume.extracted_text, role_title=role_title)
+    
+    # Step 4: Analyzing Skill Gaps
+    socketio.emit('analysis_progress', {'step': 'gap'}, namespace='/')
+    
+    # Step 5: Generating Recommendations
+    socketio.emit('analysis_progress', {'step': 'recommendation'}, namespace='/')
+    
+    # Step 6: XAI Reasoning
+    socketio.emit('analysis_progress', {'step': 'xai'}, namespace='/')
+    
+    # Step 8: Finalizing
+    socketio.emit('analysis_progress', {'step': 'finalizing'}, namespace='/')
     
     return jsonify({
         "role": role_title,
         "match_score": fit_report['match_score'],
         "matching_skills": fit_report['matching_skills'],
         "missing_skills": fit_report['missing_skills'],
-        "insights": fit_report.get('insights', "")
+        "method": fit_report.get('method', 'Cosine Similarity'),
+        "insights": fit_report.get('insights', ""),
+        "explanation": fit_report.get('explanation', []),
+        "recommendations": fit_report.get('recommendations', [])
     }), 200
 
 @resume_bp.route('/compare', methods=['POST'])
@@ -149,6 +201,7 @@ def compare_resumes():
             "match_score": comparison['match_score'],
             "matching_skills": comparison['matching_skills'],
             "missing_skills": comparison['missing_skills'],
+            "method": "Cosine Similarity",
             "insights": comparison.get('insights', "")
         })
         

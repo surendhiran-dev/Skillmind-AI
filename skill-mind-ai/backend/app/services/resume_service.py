@@ -1,6 +1,13 @@
 import os
 import re
-from .ai_service import analyze_resume_llm, calculate_job_fit_llm, HAS_GEMINI
+import json
+import logging
+import functools
+from .ai_service import (
+    analyze_resume_llm, calculate_job_fit_llm, 
+    analyze_match_explanation_llm, generate_skill_gap_recommendations_llm,
+    HAS_GEMINI
+)
 
 # Support for PDF and DOCX
 try:
@@ -14,6 +21,8 @@ try:
     HAS_DOCX = True
 except ImportError:
     HAS_DOCX = False
+
+from .scoring_service import calculate_weighted_score
 
 # Curated skill list (for fallback)
 KNOWN_SKILLS = [
@@ -48,42 +57,45 @@ def extract_text_from_file(file_path):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-def calculate_resume_strength_score(structured_data, skills):
+def calculate_resume_strength_score(structured_data=None, skills=None, 
+                                   tech_score=None, exp_score=None, proj_score=None, edu_score=None, cert_score=None):
     """
-    Formula:
-    0.4 × Skill Score + 0.2 × Experience Score + 0.2 × Project Score + 0.1 × Education Score + 0.1 × Certification Score
+    Delegate to modular scoring service.
     """
-    # 1. Skill Score (Diversity & Count)
-    skill_score = min((len(skills) / 10) * 100, 100)
-    
-    # 2. Experience Score
-    exp = structured_data.get('experience', {})
-    total_years = exp.get('total_years', 0)
-    experience_score = min((total_years / 5) * 100, 100) # Max score at 5 years
-    
-    # 3. Project Score
-    projects = structured_data.get('projects', [])
-    project_score = min(len(projects) * 25, 100) # Max score at 4 projects
-    
-    # 4. Education Score
-    edu = structured_data.get('education', [])
-    education_score = 100 if edu else 0
-    
-    # 5. Certification Score
-    certs = structured_data.get('certifications', [])
-    cert_score = min(len(certs) * 50, 100) # Max score at 2 certs
+    # If direct scores are provided, use them. Otherwise, calculate from metadata.
+    if all(s is not None for s in [tech_score, exp_score, proj_score, edu_score, cert_score]):
+        final_score, breakdown = calculate_weighted_score(
+            tech_score=tech_score, exp_score=exp_score, proj_score=proj_score, 
+            edu_score=edu_score, cert_score=cert_score
+        )
+    else:
+        structured_data = structured_data or {}
+        skills = skills or []
+        
+        tech_skills = structured_data.get('technical_skills', skills)
+        tech_count = len(tech_skills)
+        
+        exp = structured_data.get('experience', {})
+        experience_years = exp.get('total_years', 0)
+        
+        projects = structured_data.get('projects', [])
+        project_count = len(projects)
+        
+        edu = structured_data.get('education', [])
+        has_edu = True if edu else False
+        
+        certs = structured_data.get('certifications', [])
+        cert_count = len(certs)
 
-    final_score = (0.4 * skill_score) + (0.2 * experience_score) + (0.2 * project_score) + (0.1 * education_score) + (0.1 * cert_score)
+        final_score, breakdown = calculate_weighted_score(tech_count, experience_years, project_count, has_edu, cert_count)
     
-    breakdown = {
-        "skill_score": round(skill_score, 1),
-        "experience_score": round(experience_score, 1),
-        "project_score": round(project_score, 1),
-        "education_score": round(education_score, 1),
-        "certification_score": round(cert_score, 1)
+    return final_score, {
+        "diversity": breakdown['technical'],
+        "experience": breakdown['experience'],
+        "projects": breakdown['projects'],
+        "education": breakdown['education'],
+        "certification": breakdown['certification']
     }
-    
-    return round(final_score, 1), breakdown
 
 def analyze_resume(text):
     """Full production-level analysis pipeline."""
@@ -102,10 +114,17 @@ def analyze_resume(text):
         if ai_data:
             result.update(ai_data)
     
-    # Calculate score
-    score, breakdown = calculate_resume_strength_score(result['structured_data'], result['skills'])
-    result['resume_score'] = score
-    result['score_breakdown'] = breakdown
+    # Calculate Production-Level Strength Score
+    sc = result.get('score_components', {}) # Changed raw_analysis to result
+    resume_score, score_breakdown = calculate_resume_strength_score(
+        tech_score=sc.get('technical', 70),
+        exp_score=sc.get('experience', 60),
+        proj_score=sc.get('projects', 50),
+        edu_score=sc.get('education', 80),
+        cert_score=sc.get('certifications', 40)
+    )
+    result['resume_score'] = resume_score
+    result['score_breakdown'] = score_breakdown
     result['raw_text'] = text
     
     return result
@@ -128,9 +147,20 @@ def compare_skills(resume_skills, jd_text, resume_text=None, role_title="Unspeci
             "insights": "Basic skill matching used (LLM unavailable or text missing)."
         }
 
+    # Add Explainability and Recommendations if possible
+    explanation = []
+    recommendations = []
+    if HAS_GEMINI and resume_text:
+        explanation = analyze_match_explanation_llm(resume_text, jd_text, match_res.get("match_score", 0))
+        recommendations = generate_skill_gap_recommendations_llm(match_res.get("missing", []))
+
     return {
         "match_score": match_res.get("match_score", 0),
-        "matching_skills": match_res.get("matches", []),
-        "missing_skills": match_res.get("missing", []),
-        "insights": match_res.get("insights", "No insights available.")
+        "matching_skills": match_res.get("matching_skills", match_res.get("matches", [])),
+        "missing_skills": match_res.get("missing_skills", match_res.get("missing", [])),
+        "breakdown": match_res.get("breakdown", {}),
+        "method": match_res.get("method", "Heuristic Profile Matching"),
+        "insights": match_res.get("insights", "No insights available."),
+        "explanation": explanation,
+        "recommendations": recommendations
     }

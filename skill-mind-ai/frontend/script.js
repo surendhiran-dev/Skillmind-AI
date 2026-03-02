@@ -2,6 +2,7 @@
     'use strict';
 
     const API = '';  // same origin
+    const socket = io(); // Initialize Socket.IO connection
 
     /* ===== State ===== */
     const rawUser = sessionStorage.getItem('user');
@@ -13,6 +14,7 @@
     const state = {
         token: sessionStorage.getItem('token'),
         user: rawUser && rawUser !== 'undefined' ? JSON.parse(rawUser) : null,
+        activePage: 'home', // New
         activeJD: sessionStorage.getItem('activeJD') || '',
         activeResumeSkills: safeParse('activeResumeSkills', []),
         activeJDSkills: safeParse('activeJDSkills', []),
@@ -23,10 +25,11 @@
         codingIndex: 0,
         codingSubmissions: [],
         codingTotalMarks: 0,
+        currentEntities: {}, // New
+        charts: {}, // Store chart instances // New
         interviewSessionId: null,
         interviewActive: false,
         interviewQuestionIndex: 0,
-        interviewMessages: [],
         interviewMessages: [],
         lastReport: null
     };
@@ -34,6 +37,42 @@
     /* ===== Helpers ===== */
     const $ = (s) => document.querySelector(s);
     const $$ = (s) => document.querySelectorAll(s);
+
+    // --- Utilities ---
+    const animateValue = (id, start, end, duration) => {
+        const obj = document.getElementById(id);
+        if (!obj) return;
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            obj.innerHTML = Math.floor(progress * (end - start) + start) + '%';
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+        window.requestAnimationFrame(step);
+    };
+
+    const updateCircularStrength = (score) => {
+        const circle = document.getElementById('resStrengthCircle');
+        const label = document.getElementById('resAnalysisScore');
+        if (circle) {
+            circle.style.strokeDasharray = `${score}, 100`;
+        }
+        if (label) {
+            let current = 0;
+            const interval = setInterval(() => {
+                if (current >= score) {
+                    label.innerText = score;
+                    clearInterval(interval);
+                } else {
+                    current++;
+                    label.innerText = current;
+                }
+            }, 15);
+        }
+    };
 
     function showToast(message, type = 'info') {
         const container = $('#toastContainer');
@@ -1065,7 +1104,7 @@
         async function handleUpload(file) {
             fileNameEl.textContent = `Selected: ${file.name}`;
             statusEl.classList.remove('hidden', 'success', 'error');
-            statusEl.innerHTML = '<span class="spinner"></span> Analyzing resume...';
+            statusEl.innerHTML = '<span class="spinner"></span> Analyzing Resume...';
             statusEl.classList.add('success');
             statusEl.classList.remove('hidden');
 
@@ -1088,7 +1127,9 @@
                 // Render Advanced Analysis
                 if (data.resume_score !== undefined) {
                     $('#resumeAnalysisResult').classList.remove('hidden');
-                    $('#resAnalysisScore').textContent = Math.round(data.resume_score);
+                    // $('#resAnalysisScore').textContent = Math.round(data.resume_score); // Replaced by updateCircularStrength
+                    updateCircularStrength(Math.round(data.resume_score));
+                    $('#resAnalysisScoreLabel').textContent = `Resume Strength: ${Math.round(data.resume_score)}/100`;
 
                     // Render Breakdown
                     const breakdown = data.score_breakdown || {};
@@ -1107,7 +1148,13 @@
 
                     // Store entities for tab switching
                     state.currentEntities = data.structured_data || {};
-                    renderEntities('edu'); // Default to Academic
+                    renderEntities('tech');
+
+                    // Render Radar Chart
+                    renderSkillRadar(data.technical_skills || []);
+
+                    // Render Recommendations
+                    renderRecommendations(data.recommendations || []);
                 }
 
                 showToast('Resume uploaded and analyzed!', 'success');
@@ -1132,7 +1179,21 @@
             const entities = state.currentEntities || {};
             let html = '';
 
-            if (type === 'edu') {
+            if (type === 'tech') {
+                const tech = Array.isArray(entities.technical_skills) ? entities.technical_skills : [];
+                html = tech.length ? tech.map(s => `
+                    <div class="entity-item" style="margin-bottom: 1.2rem; border-left: 2px solid var(--primary); padding-left: 1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <strong style="color: #fff; font-size: 1rem;">${s.name || s}</strong>
+                            <span style="font-size: 0.8rem; color: var(--primary); font-weight:700;">${s.confidence ? Math.round(s.confidence * 100) : 85}% Confidence</span>
+                        </div>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); line-height:1.4; margin:0;">${s.reasoning || 'Heuristic skill extraction identified this core competency.'}</p>
+                        <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: 8px; overflow: hidden;">
+                            <div style="width: ${s.confidence ? s.confidence * 100 : 85}%; height: 100%; background: var(--primary-gradient);"></div>
+                        </div>
+                    </div>
+                `).join('') : '<p style="color: var(--text-dim);">No technical skills extracted.</p>';
+            } else if (type === 'edu') {
                 const edu = Array.isArray(entities.education) ? entities.education : (entities.education ? [entities.education] : []);
                 html = edu.length ? edu.map(e => `
                     <div class="entity-item" style="margin-bottom: 1rem; border-left: 2px solid var(--primary); padding-left: 1rem;">
@@ -1142,10 +1203,10 @@
                     </div>
                 `).join('') : '<p style="color: var(--text-dim);">No educational data found.</p>';
             } else if (type === 'exp') {
-                const exp = Array.isArray(entities.experience) ? entities.experience : (entities.experience ? [entities.experience] : []);
+                const exp = Array.isArray(entities.experience) ? entities.experience : (entities.roles ? entities.roles : (entities.experience ? (entities.experience.roles || []) : []));
                 html = exp.length ? exp.map(e => `
                     <div class="entity-item" style="margin-bottom: 1rem; border-left: 2px solid var(--accent); padding-left: 1rem;">
-                        <div style="font-weight: 700; color: #fff;">${e.role || 'Role Unknown'}</div>
+                        <div style="font-weight: 700; color: #fff;">${e.title || 'Role Unknown'}</div>
                         <div style="font-size: 0.9rem; color: var(--text-muted);">${e.company || 'Company Unknown'}</div>
                         ${e.duration ? `<div style="font-size: 0.8rem; color: var(--accent);">${e.duration}</div>` : ''}
                     </div>
@@ -1169,7 +1230,7 @@
 
             const btn = $('#runCompareBtn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Syncing Assessments...';
+            btn.innerHTML = '<span class="spinner"></span> Analyzing Resume & JD...';
 
             try {
                 const data = await api('/api/resume/compare', {
@@ -1183,30 +1244,26 @@
                 sessionStorage.setItem('activeJDSkills', JSON.stringify(state.activeJDSkills));
 
                 // Show report
-                $('#jdAnalysisResult').classList.remove('hidden');
-                $('#jdAnalysisContent').innerHTML = `
+                $('#comparisonResult').classList.remove('hidden');
+                $('#comparisonContent').innerHTML = `
                     <div class="comp-box" style="grid-column: 1 / -1;">
                         <div class="comp-header">
                             <div>
                                 <strong style="font-size: 1.1rem; color: var(--primary);">Alignment Report</strong>
                                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Assessments are now tailored to this JD.</p>
                             </div>
-                            <div class="comp-score-wrap">
-                                <div class="match-pct">${data.comparison[0].match_score}%</div>
-                                <div class="match-label">Match Score</div>
-                            </div>
                         </div>
                         <div class="comp-grid">
                             <div class="comp-section">
                                 <h4>Matching Skills</h4>
                                 <div class="comp-tags">
-                                    ${data.comparison[0].matching_skills.map(s => `<span class="comp-tag comp-match">${s}</span>`).join('')}
+                                    ${data.comparison[0].matching_skills.length ? data.comparison[0].matching_skills.map(s => `<span class="comp-tag comp-match">${typeof s === 'object' ? s.skill : s}</span>`).join('') : '<span class="placeholder-text">None</span>'}
                                 </div>
                             </div>
                             <div class="comp-section">
                                 <h4>Missing Skills</h4>
                                 <div class="comp-tags">
-                                    ${data.comparison[0].missing_skills.map(s => `<span class="comp-tag comp-missing">${s}</span>`).join('')}
+                                    ${data.comparison[0].missing_skills.length ? data.comparison[0].missing_skills.map(s => `<span class="comp-tag comp-missing">${typeof s === 'object' ? s.skill : s}</span>`).join('') : '<span class="placeholder-text">None</span>'}
                                 </div>
                             </div>
                         </div>
@@ -1219,10 +1276,33 @@
                     </div>
                 `;
 
-                showToast('JD synced with assessments!', 'success');
+                // Update Match Breakdown
+                const bd = data.comparison[0].breakdown || {};
+                const overallScore = Math.round(data.comparison[0].match_score);
+                animateValue('mainMatchScore', 0, overallScore, 1000);
 
-                // Switch to dashboard after a delay to see the impact?
-                // Or just stay here. Let's stay here.
+                const categories = [
+                    { id: 'tech', key: 'technical' },
+                    { id: 'exp', key: 'experience' },
+                    { id: 'edu', key: 'education' },
+                    { id: 'soft', key: 'soft_skills' }
+                ];
+
+                categories.forEach(cat => {
+                    const score = Math.round(bd[cat.key] || 0);
+                    animateValue(`${cat.id}MatchScore`, 0, score, 800);
+                    const bar = document.getElementById(`${cat.id}MatchBar`);
+                    if (bar) bar.style.width = score + '%';
+                });
+
+                // Render Visuals
+                renderMatchMeter(data.comparison[0].match_score);
+                renderSkillRadarDual(data.comparison[0].matching_skills, data.comparison[0].missing_skills);
+                renderSkillMatrix(data.comparison[0].matching_skills, data.comparison[0].missing_skills);
+                renderRecommendations(data.comparison[0].recommendations || []);
+                renderXAI(data.comparison[0].explanation || []);
+
+                showToast('Advanced JD Analysis Complete!', 'success');
             } catch (err) {
                 showToast(err.message || 'Analysis failed', 'error');
             } finally {
@@ -1230,6 +1310,253 @@
                 btn.textContent = 'Compare & Sync Assessments';
             }
         });
+
+        function renderSkillRadar(skills) {
+            const ctx = document.getElementById('skillRadarChart');
+            if (!ctx) return;
+
+            // Destroy existing chart if any
+            if (state.charts.radar) state.charts.radar.destroy();
+
+            const labels = skills.slice(0, 6).map(s => s.skill);
+            const values = skills.slice(0, 6).map(s => (s.confidence || 0.8) * 100);
+
+            state.charts.radar = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels.length ? labels : ['Skill A', 'Skill B', 'Skill C'],
+                    datasets: [{
+                        label: 'Confidence Index (%)',
+                        data: values.length ? values : [0, 0, 0],
+                        backgroundColor: 'rgba(0, 212, 255, 0.2)',
+                        borderColor: '#00d4ff',
+                        pointBackgroundColor: '#00d4ff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(255,255,255,0.1)' },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            pointLabels: { color: '#888' },
+                            ticks: { display: false, stepSize: 20 },
+                            suggestedMin: 0,
+                            suggestedMax: 100
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function renderRecommendations(recs) {
+            const container = document.getElementById('recommendationsList');
+            if (!container) return;
+
+            container.innerHTML = recs.map(r => `
+                <div class="rec-item" style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <span style="display: block; font-weight: 600; color: #fff;">${r.text || r}</span>
+                    </div>
+                    ${r.projected_increase ? `
+                        <div style="text-align: right; margin-left:1rem;">
+                            <span style="display: block; font-size: 0.7rem; color: var(--accent); font-weight: 800; text-transform: uppercase;">BOOST</span>
+                            <span style="font-size: 1.1rem; font-weight: 800; color: var(--accent);">+${r.projected_increase}%</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderMatchMeter(score) {
+            const ctx = document.getElementById('matchMeterChart');
+            if (!ctx) return;
+
+            if (state.charts.meter) state.charts.meter.destroy();
+
+            state.charts.meter = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Match', 'Gap'],
+                    datasets: [{
+                        data: [score, 100 - score],
+                        backgroundColor: ['#00d4ff', 'rgba(255,255,255,0.05)'],
+                        borderWidth: 0,
+                        circumference: 180,
+                        rotation: 270,
+                        cutout: '80%'
+                    }]
+                },
+                options: {
+                    aspectRatio: 1.5,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    }
+                }
+            });
+        }
+
+        function renderXAI(explanation) {
+            const list = $('#xaiList');
+            if (!list) return;
+
+            if (!explanation.length) {
+                list.innerHTML = '<p style="color:var(--text-dim);">Detailed explainability data loading...</p>';
+                return;
+            }
+
+            list.innerHTML = explanation.map(ex => `
+                <div class="xai-item" style="padding: 10px; border-radius: 8px; background: ${ex.type === 'contributor' ? 'rgba(0,255,0,0.05)' : 'rgba(255,0,0,0.05)'}; border-left: 3px solid ${ex.type === 'contributor' ? '#4ade80' : '#f87171'};">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <strong style="color:#fff;">${ex.skill}</strong>
+                        <span style="font-size: 0.8rem; font-weight:700; color: ${ex.type === 'contributor' ? '#4ade80' : '#f87171'};">
+                            ${ex.impact > 0 ? '+' : ''}${ex.impact}%
+                        </span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top:4px;">${ex.reason}</p>
+                </div>
+            `).join('');
+        }
+
+        function renderRecommendations(recs) {
+            const section = $('#aiSuggestionsSection');
+            const content = $('#aiSuggestionsContent');
+            if (!section || !content) return;
+
+            if (!recs || !recs.length) {
+                section.classList.add('hidden');
+                return;
+            }
+
+            section.classList.remove('hidden');
+            content.innerHTML = recs.map(r => `
+                <div class="rec-card" style="padding: 1rem; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);">
+                    <div style="font-weight:700; color:var(--accent); margin-bottom:5px;">${r.skill}</div>
+                    <div style="font-size:0.8rem; color:#fff; margin-bottom:8px;">${r.action}</div>
+                    <div style="display:flex; justify-content:space-between; font-size: 0.75rem;">
+                        <span style="color:var(--text-muted);">${r.platform}</span>
+                        <span style="color:#4ade80; font-weight:700;">+${r.boost}% Boost</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderSkillBarChart(matching, missing) {
+            const ctx = document.getElementById('skillBarChart');
+            if (!ctx) return;
+
+            if (state.charts.bar) state.charts.bar.destroy();
+
+            const labels = [...matching.map(s => typeof s === 'object' ? s.skill : s), ...missing.map(s => typeof s === 'object' ? s.skill : s)].slice(0, 10);
+            const dataValues = labels.map(l => matching.some(s => (typeof s === 'object' ? s.skill : s) === l) ? 100 : 20);
+
+            state.charts.bar = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Skill Proficiency/Match',
+                        data: dataValues,
+                        backgroundColor: dataValues.map(v => v === 100 ? '#00d4ff' : 'rgba(255,100,100,0.1)'),
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    scales: {
+                        x: { display: false, max: 100 },
+                        y: { ticks: { color: '#888' }, grid: { display: false } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function renderSkillRadarDual(matching, missing) {
+            const ctx = document.getElementById('skillRadarChartDual');
+            if (!ctx) return;
+
+            if (state.charts.radar) state.charts.radar.destroy();
+
+            const labels = [...matching.map(s => s.skill || s), ...missing.map(s => s.skill || s)].slice(0, 8);
+
+            // Resume values (Matches are 90-100%, missing are 10-20%)
+            const resumeData = labels.map(l => matching.some(s => (s.skill || s) === l) ? 95 : 15);
+            // JD values (Requirements are always 100% target)
+            const jdData = labels.map(() => 100);
+
+            state.charts.radar = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Your Profile',
+                            data: resumeData,
+                            backgroundColor: 'rgba(0, 212, 255, 0.2)',
+                            borderColor: '#00d4ff',
+                            pointBackgroundColor: '#00d4ff',
+                        },
+                        {
+                            label: 'Job Requirements',
+                            data: jdData,
+                            backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                            borderColor: '#a855f7',
+                            borderDash: [5, 5],
+                            pointBackgroundColor: '#a855f7',
+                        }
+                    ]
+                },
+                options: {
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            ticks: { display: false },
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            angleLines: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#fff', font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        function renderSkillMatrix(matching, missing) {
+            const tbody = document.getElementById('skillMatrixBody');
+            if (!tbody) return;
+
+            const rows = [];
+
+            matching.forEach(s => {
+                rows.push(`
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                        <td style="padding: 1rem; color: #fff; font-weight: 600;">${s.skill || s}</td>
+                        <td style="padding: 1rem; text-align: center;"><i class="fas fa-check-circle" style="color: #4ade80;"></i></td>
+                        <td style="padding: 1rem; text-align: center; color: var(--text-muted);">${(s.weight || 0.5).toFixed(1)}</td>
+                        <td style="padding: 1rem; text-align: center;"><span style="color: #4ade80;">Matched</span></td>
+                    </tr>
+                `);
+            });
+
+            missing.forEach(s => {
+                const priorityColor = s.priority === 'High' ? '#f87171' : (s.priority === 'Medium' ? '#fbbf24' : '#60a5fa');
+                rows.push(`
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                        <td style="padding: 1rem; color: rgba(255,255,255,0.7);">${s.skill || s}</td>
+                        <td style="padding: 1rem; text-align: center;"><i class="fas fa-times-circle" style="color: #f87171;"></i></td>
+                        <td style="padding: 1rem; text-align: center; color: var(--text-muted);">${(s.weight || 0.5).toFixed(1)}</td>
+                        <td style="padding: 1rem; text-align: center;"><span style="background: ${priorityColor}22; color: ${priorityColor}; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700;">${s.priority || 'Low'}</span></td>
+                    </tr>
+                `);
+            });
+
+            tbody.innerHTML = rows.slice(0, 10).join('');
+        }
     }
 
     async function handleJDComparison() {
@@ -1728,6 +2055,20 @@
         }
     }
 
+    socket.on('analysis_progress', (data) => {
+        const steps = {
+            'extract': 'Extracting Resume Entities...',
+            'embedding': 'Generating Embeddings...',
+            'similarity': 'Calculating Similarity...',
+            'gap': 'Analyzing Skill Gaps...',
+            'recommendation': 'Generating Recommendations...',
+            'xai': 'Analyzing Match Reasoning...',
+            'normalization': 'Normalizing Skill Taxonomy...',
+            'finalizing': 'Finalizing Intelligent Report...'
+        };
+        const message = steps[data.step] || data.message;
+        updateStatus(message, 'info');
+    });
     function appendMessage(role, text) {
         const msgs = $('#chatMessages');
         const bubble = document.createElement('div');

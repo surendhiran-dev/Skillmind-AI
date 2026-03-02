@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description"
         content="Skill Mind AI - Intelligent Interview Capability Assessment and Predictive Skill Mapping System">
-    <title>Skill Mind AI | AI-Powered Career Growth</title>
+    <title>SkillMind AI - Smart Recruitment System</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
@@ -14,9 +14,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script>console.log("Skill Mind AI: HTML Head script running.");</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
 </head>
 
 <body>
@@ -370,10 +369,138 @@
             </div>
 
             <!-- Comparison Result -->
-            <div id="jdAnalysisResult" class="card hidden" style="margin: 0 2rem 2rem;">
-                <h3>JD Match Analysis</h3>
-                <div id="jdAnalysisContent" class="comparison-content">
-                    <!-- Content here -->
+            <div id="comparisonResult" class="card hidden">
+                <div class="card-header">
+                    <h3>Advanced JD Match Analytics</h3>
+                    <div id="compMethodLabel"
+                        style="font-size: 0.75rem; color: var(--text-muted); padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 20px;">
+                        Method: Weighted Cosine Similarity</div>
+                </div>
+
+                <!-- Match Percentage Breakdown -->
+                <div id="matchBreakdown" style="padding: 0 1.5rem; margin-bottom: 2rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.5rem;">
+                        <h4 style="color: var(--primary);">Overall Alignment: <span id="mainMatchScore"
+                                style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">0%</span></h4>
+                    </div>
+                    <div class="breakdown-grid"
+                        style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        <div class="breakdown-item"
+                            style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">
+                                    Technical (40%)</div>
+                                <div id="techMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%
+                                </div>
+                            </div>
+                            <div class="mini-bar"
+                                style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                                <div id="techMatchBar"
+                                    style="height: 100%; width: 0%; background: var(--primary); transition: width 1s ease;">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="breakdown-item"
+                            style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">
+                                    Experience (30%)</div>
+                                <div id="expMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%</div>
+                            </div>
+                            <div class="mini-bar"
+                                style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                                <div id="expMatchBar"
+                                    style="height: 100%; width: 0%; background: #a855f7; transition: width 1s ease;">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="breakdown-item"
+                            style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">
+                                    Education (20%)</div>
+                                <div id="eduMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%</div>
+                            </div>
+                            <div class="mini-bar"
+                                style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                                <div id="eduMatchBar"
+                                    style="height: 100%; width: 0%; background: #ec4899; transition: width 1s ease;">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="breakdown-item"
+                            style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">
+                                    Soft Skills (10%)</div>
+                                <div id="softMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%
+                                </div>
+                            </div>
+                            <div class="mini-bar"
+                                style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                                <div id="softMatchBar"
+                                    style="height: 100%; width: 0%; background: #f59e0b; transition: width 1s ease;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="comp-viz-grid"
+                    style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 2rem; margin-bottom: 2rem; padding: 0 1.5rem;">
+                    <div
+                        style="background: rgba(255,255,255,0.02); border-radius: 15px; padding: 1.5rem; text-align: center;">
+                        <canvas id="matchMeterChart"></canvas>
+                        <h4 style="margin-top: 1rem; color: var(--primary);">Match Meter</h4>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.02); border-radius: 15px; padding: 1.5rem;">
+                        <h4 style="margin-bottom: 1rem; color: var(--primary);">Dynamic Skill Comparison</h4>
+                        <canvas id="skillRadarChartDual" style="max-height: 250px;"></canvas>
+                    </div>
+                </div>
+
+                <!-- Skill Matrix Table -->
+                <div style="padding: 0 1.5rem; margin-bottom: 2rem;">
+                    <h4 style="margin-bottom: 1rem; color: var(--primary);">Intelligent Skill Gap Matrix</h4>
+                    <div class="skill-table-wrapper"
+                        style="background: rgba(255,255,255,0.01); border-radius: 15px; border: 1px solid var(--glass-border); overflow: hidden;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                            <thead style="background: rgba(255,255,255,0.03);">
+                                <tr>
+                                    <th style="padding: 1rem; text-align: left; color: var(--text-muted);">Skill</th>
+                                    <th style="padding: 1rem; text-align: center; color: var(--text-muted);">Status</th>
+                                    <th style="padding: 1rem; text-align: center; color: var(--text-muted);">Weight</th>
+                                    <th style="padding: 1rem; text-align: center; color: var(--text-muted);">Priority
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="skillMatrixBody">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Collapsible XAI Section -->
+                <div class="xai-container" style="padding: 0 1.5rem 2rem;">
+                    <details
+                        style="background: rgba(255,255,255,0.02); border-radius: 15px; border: 1px solid var(--glass-border); overflow: hidden;">
+                        <summary
+                            style="padding: 1.2rem; cursor: pointer; color: var(--primary); font-weight: 700; list-style: none; display: flex; justify-content: space-between; align-items: center;">
+                            <span>Why this score? (Explainable AI Insights)</span>
+                            <i class="fas fa-chevron-down" style="font-size: 0.8rem;"></i>
+                        </summary>
+                        <div id="explainabilityContent" style="padding: 1.2rem;">
+                            <div id="xaiList" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+                    </details>
                 </div>
             </div>
 
@@ -387,18 +514,36 @@
                             results and candidate benchmarking</p>
                     </div>
                     <div class="overall-score-badge"
-                        style="background: var(--primary-gradient); padding: 12px 25px; border-radius: 15px; text-align: center; box-shadow: 0 10px 20px rgba(0, 212, 255, 0.2);">
-                        <div id="resAnalysisScore"
-                            style="font-size: 2rem; font-weight: 800; color: #fff; line-height:1;">0</div>
-                        <div
-                            style="font-size: 0.65rem; color: rgba(255,255,255,0.9); text-transform: uppercase; font-weight: 700; margin-top:5px; letter-spacing:1px;">
-                            Strength Score</div>
+                        style="background: transparent; box-shadow: none; display: flex; align-items: center; gap: 1rem;">
+                        <div class="circle-progress-wrapper" style="position: relative; width: 80px; height: 80px;">
+                            <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3" />
+                                <path id="resStrengthCircle"
+                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    fill="none" stroke="var(--primary)" stroke-width="3" stroke-dasharray="0, 100"
+                                    style="transition: stroke-dasharray 1s ease;" />
+                            </svg>
+                            <div id="resAnalysisScore"
+                                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.25rem; font-weight: 800; color: #fff;">
+                                0</div>
+                        </div>
+                        <div id="resAnalysisScoreLabel"
+                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing:1px; line-height: 1.2;">
+                            Resume<br>Strength</div>
                     </div>
                 </div>
 
                 <div class="analysis-grid" style="display: grid; grid-template-columns: 1fr 2fr; gap: 2.5rem;">
-                    <!-- Left: Breakdown -->
+                    <!-- Left: Visualizations -->
                     <div class="analysis-left">
+                        <h4 style="margin-bottom: 1.2rem; font-size: 1.1rem; color: var(--primary);">Skill Strength
+                            Profile</h4>
+                        <div
+                            style="background: rgba(255,255,255,0.02); border-radius: 15px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                            <canvas id="skillRadarChart"></canvas>
+                        </div>
+
                         <h4 style="margin-bottom: 1.2rem; font-size: 1.1rem; color: var(--primary);">Scoring Breakdown
                         </h4>
                         <div id="resAnalysisBreakdown" style="display: flex; flex-direction: column; gap: 1.2rem;">
@@ -414,13 +559,25 @@
                         </div>
                         <div class="entity-tabs"
                             style="display: flex; gap: 1px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 10px; margin-bottom: 1.5rem; width: fit-content;">
-                            <button class="btn-tab active" data-tab="edu">Academic</button>
+                            <button class="btn-tab active" data-tab="tech">Technical</button>
+                            <button class="btn-tab" data-tab="edu">Academic</button>
                             <button class="btn-tab" data-tab="exp">Experience</button>
                             <button class="btn-tab" data-tab="proj">Projects</button>
                         </div>
                         <div id="entityContent"
                             style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 15px; padding: 1.5rem; min-height: 250px;">
                             <!-- Filled by JS -->
+                        </div>
+
+                        <!-- NEW: AI Suggestions Section -->
+                        <div id="aiSuggestionsSection" class="hidden"
+                            style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--glass-border);">
+                            <h4 style="margin-bottom: 1.2rem; font-size: 1.1rem; color: var(--accent);">Strategic
+                                Improvement Suggestions</h4>
+                            <div id="aiSuggestionsContent"
+                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <!-- Filled by JS -->
+                            </div>
                         </div>
                     </div>
                 </div>
