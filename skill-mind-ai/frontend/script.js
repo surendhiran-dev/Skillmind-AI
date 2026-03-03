@@ -31,7 +31,9 @@
         interviewActive: false,
         interviewQuestionIndex: 0,
         interviewMessages: [],
-        lastReport: null
+        lastReport: null,
+        resumeErrors: [], // New
+        qualityMetrics: {} // New
     };
 
     /* ===== Helpers ===== */
@@ -1147,7 +1149,14 @@
                     `).join('');
 
                     // Store entities for tab switching
-                    state.currentEntities = data.structured_data || {};
+                    // Store entities for tab switching
+                    state.currentEntities = {
+                        tech: data.skills_categorized || {},
+                        edu: data.education || [],
+                        exp: data.experience || [],
+                        proj: data.projects || [],
+                        cert: data.certifications || []
+                    };
                     renderEntities('tech');
 
                     // Render Radar Chart
@@ -1155,6 +1164,12 @@
 
                     // Render Recommendations
                     renderRecommendations(data.recommendations || []);
+
+                    // Render Error Report
+                    renderErrorReports(data.error_report || []);
+
+                    // Render Quality Heatmap
+                    renderQualityHeatmap(data.quality_report || {}, data.quality_score || 0);
                 }
 
                 showToast('Resume uploaded and analyzed!', 'success');
@@ -1180,21 +1195,29 @@
             let html = '';
 
             if (type === 'tech') {
-                const tech = Array.isArray(entities.technical_skills) ? entities.technical_skills : [];
-                html = tech.length ? tech.map(s => `
+                const cats = entities.tech || {};
+                const allSkills = [];
+                Object.entries(cats).forEach(([catName, skills]) => {
+                    if (Array.isArray(skills)) {
+                        skills.forEach(s => {
+                            allSkills.push({ ...s, category: catName });
+                        });
+                    }
+                });
+
+                html = allSkills.length ? allSkills.map(s => `
                     <div class="entity-item" style="margin-bottom: 1.2rem; border-left: 2px solid var(--primary); padding-left: 1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                            <strong style="color: #fff; font-size: 1rem;">${s.name || s}</strong>
-                            <span style="font-size: 0.8rem; color: var(--primary); font-weight:700;">${s.confidence ? Math.round(s.confidence * 100) : 85}% Confidence</span>
+                            <strong style="color: #fff; font-size: 1rem;">${s.skill || s}</strong>
+                            <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: capitalize;">${s.category.replace('_', ' ')}</span>
                         </div>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); line-height:1.4; margin:0;">${s.reasoning || 'Heuristic skill extraction identified this core competency.'}</p>
                         <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: 8px; overflow: hidden;">
                             <div style="width: ${s.confidence ? s.confidence * 100 : 85}%; height: 100%; background: var(--primary-gradient);"></div>
                         </div>
                     </div>
                 `).join('') : '<p style="color: var(--text-dim);">No technical skills extracted.</p>';
             } else if (type === 'edu') {
-                const edu = Array.isArray(entities.education) ? entities.education : (entities.education ? [entities.education] : []);
+                const edu = Array.isArray(entities.edu) ? entities.edu : [];
                 html = edu.length ? edu.map(e => `
                     <div class="entity-item" style="margin-bottom: 1rem; border-left: 2px solid var(--primary); padding-left: 1rem;">
                         <div style="font-weight: 700; color: #fff;">${e.degree || 'Degree Unknown'}</div>
@@ -1203,7 +1226,7 @@
                     </div>
                 `).join('') : '<p style="color: var(--text-dim);">No educational data found.</p>';
             } else if (type === 'exp') {
-                const exp = Array.isArray(entities.experience) ? entities.experience : (entities.roles ? entities.roles : (entities.experience ? (entities.experience.roles || []) : []));
+                const exp = Array.isArray(entities.exp) ? entities.exp : [];
                 html = exp.length ? exp.map(e => `
                     <div class="entity-item" style="margin-bottom: 1rem; border-left: 2px solid var(--accent); padding-left: 1rem;">
                         <div style="font-weight: 700; color: #fff;">${e.title || 'Role Unknown'}</div>
@@ -1212,11 +1235,11 @@
                     </div>
                 `).join('') : '<p style="color: var(--text-dim);">No professional experience data found.</p>';
             } else if (type === 'proj') {
-                const proj = Array.isArray(entities.projects) ? entities.projects : (entities.projects ? [entities.projects] : []);
+                const proj = Array.isArray(entities.proj) ? entities.proj : [];
                 html = proj.length ? proj.map(p => `
                     <div class="entity-item" style="margin-bottom: 1rem; border-left: 2px solid var(--warning); padding-left: 1rem;">
-                        <div style="font-weight: 700; color: #fff;">${p.name || 'Project Name Unknown'}</div>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">${p.description || ''}</p>
+                        <div style="font-weight: 700; color: #fff;">${p.title || 'Project Name Unknown'}</div>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">${p.role || ''}</p>
                         ${p.technologies ? `<div style="margin-top: 5px;">${p.technologies.slice(0, 5).map(t => `<span class="tag xsmall-tag" style="font-size:10px; padding:2px 6px;">${t}</span>`).join('')}</div>` : ''}
                     </div>
                 `).join('') : '<p style="color: var(--text-dim);">No project data found.</p>';
@@ -1224,9 +1247,60 @@
             container.innerHTML = html;
         }
 
+        function renderErrorReports(errors) {
+            const container = $('#resumeErrorReport');
+            const content = $('#errorReportContent');
+            if (!container || !content) return;
+
+            if (!errors || errors.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            content.innerHTML = errors.map(err => `
+                <div class="error-item" style="background: rgba(239, 68, 68, 0.05); border-left: 3px solid #ef4444; padding: 1rem; border-radius: 8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <strong style="color: #fff; font-size: 0.95rem;">${err.type}: ${err.finding}</strong>
+                        <span style="font-size: 0.75rem; background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 2px 8px; border-radius: 10px;">${err.location}</span>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">Suggestion: <span style="color: #10b981; font-weight: 600;">${err.suggestion}</span></p>
+                </div>
+            `).join('');
+        }
+
+        function renderQualityHeatmap(metrics, overall) {
+            const section = $('#resumeHeatmapSection');
+            const container = $('#resumeHeatmap');
+            if (!section || !container) return;
+
+            if (!metrics || Object.keys(metrics).length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+
+            section.classList.remove('hidden');
+            container.innerHTML = Object.entries(metrics).map(([key, val]) => {
+                const color = val > 80 ? '#10b981' : (val > 60 ? '#f59e0b' : '#ef4444');
+                return `
+                    <div class="heatmap-cell" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 1rem; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">${key.replace('_', ' ')}</div>
+                        <div style="font-size: 1.25rem; font-weight: 800; color: ${color};">${val}%</div>
+                        <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: 10px; overflow: hidden;">
+                            <div style="width: ${val}%; height: 100%; background: ${color}; opacity: 0.6;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         $('#runCompareBtn')?.addEventListener('click', async () => {
-            const jd = jdTextArea.value.trim();
+            const jdArea = $('#jdTextArea');
+            if (!jdArea) return;
+
+            const jd = jdArea.value.trim();
             if (!jd) return showToast('Please paste a job description', 'warning');
+            if (jd.length < 30) return showToast('Please enter a more detailed job description (minimum 30 characters).', 'warning');
 
             const btn = $('#runCompareBtn');
             btn.disabled = true;
@@ -1238,8 +1312,20 @@
                     body: { jd }
                 });
 
+                console.log("Comparison Data Received:", data);
+                if (!data || !data.comparison || data.comparison.length === 0) {
+                    throw new Error("Invalid comparison data received from server.");
+                }
+
+                const comp = data.comparison[0];
+                console.log("Primary Comparison Object:", comp);
+
+                // Update Method Label
+                const methodLabel = $('#compMethodLabel');
+                if (methodLabel) methodLabel.textContent = `Method: ${comp.method || 'Keyword Similarity'}`;
+
                 state.activeJD = jd;
-                state.activeJDSkills = data.comparison[0].matching_skills.concat(data.comparison[0].missing_skills);
+                state.activeJDSkills = (comp.matching_skills || []).concat(comp.missing_skills || []);
                 sessionStorage.setItem('activeJD', jd);
                 sessionStorage.setItem('activeJDSkills', JSON.stringify(state.activeJDSkills));
 
@@ -1247,30 +1333,62 @@
                 $('#comparisonResult').classList.remove('hidden');
                 $('#comparisonContent').innerHTML = `
                     <div class="comp-box" style="grid-column: 1 / -1;">
-                        <div class="comp-header">
+                        <div class="comp-header" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem;">
                             <div>
-                                <strong style="font-size: 1.1rem; color: var(--primary);">Alignment Report</strong>
-                                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Assessments are now tailored to this JD.</p>
+                                <strong style="font-size: 1.2rem; color: var(--primary);">JD Alignment Report</strong>
+                                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Semantic analysis relative to the provided Job Description.</p>
+                            </div>
+                            <div style="display:flex; gap:1rem; text-align:right;">
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Match Score</div>
+                                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">${Math.round(comp.match_score)}%</div>
+                                </div>
+                                <div style="border-left: 1px solid var(--glass-border); padding-left: 1rem;">
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Profile Strength</div>
+                                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary);">${Math.round(comp.resume_score || 0)}%</div>
+                                </div>
                             </div>
                         </div>
                         <div class="comp-grid">
                             <div class="comp-section">
                                 <h4>Matching Skills</h4>
                                 <div class="comp-tags">
-                                    ${data.comparison[0].matching_skills.length ? data.comparison[0].matching_skills.map(s => `<span class="comp-tag comp-match">${typeof s === 'object' ? s.skill : s}</span>`).join('') : '<span class="placeholder-text">None</span>'}
+                                    ${comp.matching_skills.length ? comp.matching_skills.map(s => `
+                                        <div class="comp-tag-wrapper" style="margin-bottom:5px;">
+                                            <span class="comp-tag comp-match">${typeof s === 'object' ? s.skill : s}</span>
+                                            ${s.reason ? `<div style="font-size:10px; color:var(--text-dim); margin-left:5px;">${s.reason}</div>` : ''}
+                                        </div>
+                                    `).join('') : '<span class="placeholder-text">None</span>'}
+                                </div>
+                            </div>
+                            <div class="comp-section">
+                                <h4>Partial Matches</h4>
+                                <div class="comp-tags">
+                                    ${(comp.partial_skills || []).length ? comp.partial_skills.map(s => `
+                                        <div class="comp-tag-wrapper" style="margin-bottom:5px;">
+                                            <span class="comp-tag comp-partial" title="${s.gap || ''}">${s.skill || s}</span>
+                                            ${s.gap ? `<div style="font-size:10px; color:var(--text-dim); margin-left:5px;">${s.gap}</div>` : ''}
+                                        </div>
+                                    `).join('') : '<span class="placeholder-text">None</span>'}
                                 </div>
                             </div>
                             <div class="comp-section">
                                 <h4>Missing Skills</h4>
                                 <div class="comp-tags">
-                                    ${data.comparison[0].missing_skills.length ? data.comparison[0].missing_skills.map(s => `<span class="comp-tag comp-missing">${typeof s === 'object' ? s.skill : s}</span>`).join('') : '<span class="placeholder-text">None</span>'}
+                                    ${comp.missing_skills.length ? comp.missing_skills.map(s => `
+                                        <div class="comp-tag-wrapper" style="margin-bottom:5px;">
+                                            <span class="comp-tag comp-missing">${typeof s === 'object' ? s.skill : s}</span>
+                                            ${s.priority ? `<div style="font-size:10px; color:#ef4444; margin-left:5px;">Priority: ${s.priority}</div>` : ''}
+                                        </div>
+                                    `).join('') : '<span class="placeholder-text">None</span>'}
                                 </div>
                             </div>
                         </div>
-                        ${data.comparison[0].insights ? `
+                        ${comp.insights ? `
                         <div class="comp-section" style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
                             <h4 style="margin-bottom: 0.5rem; color: var(--accent);">AI Insights & Fitment</h4>
-                            <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">${data.comparison[0].insights}</p>
+                            <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">${comp.insights}</p>
+                            ${comp.justification ? `<p style="font-size: 0.8rem; color: var(--text-dim); font-style: italic; margin-top: 5px;">Justification: ${comp.justification}</p>` : ''}
                         </div>
                         ` : ''}
                     </div>
@@ -1284,8 +1402,9 @@
                 const categories = [
                     { id: 'tech', key: 'technical' },
                     { id: 'exp', key: 'experience' },
+                    { id: 'proj', key: 'projects' },
                     { id: 'edu', key: 'education' },
-                    { id: 'soft', key: 'soft_skills' }
+                    { id: 'cert', key: 'certifications' }
                 ];
 
                 categories.forEach(cat => {
@@ -1297,8 +1416,8 @@
 
                 // Render Visuals
                 renderMatchMeter(data.comparison[0].match_score);
-                renderSkillRadarDual(data.comparison[0].matching_skills, data.comparison[0].missing_skills);
-                renderSkillMatrix(data.comparison[0].matching_skills, data.comparison[0].missing_skills);
+                renderSkillRadarDual(data.comparison[0].matching_skills, data.comparison[0].missing_skills, data.comparison[0].partial_skills || []);
+                renderSkillMatrix(data.comparison[0].matching_skills, data.comparison[0].missing_skills, data.comparison[0].partial_skills || []);
                 renderRecommendations(data.comparison[0].recommendations || []);
                 renderXAI(data.comparison[0].explanation || []);
 
@@ -1474,16 +1593,20 @@
             });
         }
 
-        function renderSkillRadarDual(matching, missing) {
+        function renderSkillRadarDual(matching, missing, partial) {
             const ctx = document.getElementById('skillRadarChartDual');
             if (!ctx) return;
 
             if (state.charts.radar) state.charts.radar.destroy();
 
-            const labels = [...matching.map(s => s.skill || s), ...missing.map(s => s.skill || s)].slice(0, 8);
+            const labels = [...matching.map(s => s.skill || s), ...partial.map(s => s.skill || s), ...missing.map(s => s.skill || s)].slice(0, 10);
 
-            // Resume values (Matches are 90-100%, missing are 10-20%)
-            const resumeData = labels.map(l => matching.some(s => (s.skill || s) === l) ? 95 : 15);
+            // Resume values: Matches are 95%, Partial are 60%, missing are 15%
+            const resumeData = labels.map(l => {
+                if (matching.some(s => (s.skill || s) === l)) return 95;
+                if (partial.some(s => (s.skill || s) === l)) return 60;
+                return 15;
+            });
             // JD values (Requirements are always 100% target)
             const jdData = labels.map(() => 100);
 
@@ -1526,7 +1649,30 @@
             });
         }
 
-        function renderSkillMatrix(matching, missing) {
+        function renderXAI(explanation) {
+            const container = $('#comparisonContent'); // Or a specific XAI element
+            if (!container || !explanation || explanation.length === 0) return;
+
+            const xaiHtml = `
+                <div class="xai-explanation" style="grid-column: 1 / -1; background: rgba(16, 185, 129, 0.05); padding: 1.5rem; border-radius: 12px; border-left: 4px solid var(--accent); margin-top: 1rem;">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom: 10px;">
+                        <i class="fas fa-brain" style="color: var(--accent);"></i>
+                        <h4 style="margin:0; color: #fff;">AI Match Reasoning (XAI)</h4>
+                    </div>
+                    <ul style="padding-left: 1.2rem; display: flex; flex-direction: column; gap: 8px;">
+                        ${explanation.map(exp => `
+                            <li style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.4;">
+                                <strong style="color: var(--accent);">${exp.category || 'Logic'}:</strong> ${exp.reason || exp}
+                                ${exp.impact ? ` <span style="font-size: 0.75rem; color: var(--text-dim);">[Impact: ${exp.impact}]</span>` : ''}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', xaiHtml);
+        }
+
+        function renderSkillMatrix(matching, missing, partial) {
             const tbody = document.getElementById('skillMatrixBody');
             if (!tbody) return;
 
@@ -1537,8 +1683,19 @@
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                         <td style="padding: 1rem; color: #fff; font-weight: 600;">${s.skill || s}</td>
                         <td style="padding: 1rem; text-align: center;"><i class="fas fa-check-circle" style="color: #4ade80;"></i></td>
-                        <td style="padding: 1rem; text-align: center; color: var(--text-muted);">${(s.weight || 0.5).toFixed(1)}</td>
+                        <td style="padding: 1rem; text-align: center; color: var(--text-muted);">${(s.weight || 1.0).toFixed(1)}</td>
                         <td style="padding: 1rem; text-align: center;"><span style="color: #4ade80;">Matched</span></td>
+                    </tr>
+                `);
+            });
+
+            partial.forEach(s => {
+                rows.push(`
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                        <td style="padding: 1rem; color: #fff;">${s.skill || s}</td>
+                        <td style="padding: 1rem; text-align: center;"><i class="fas fa-adjust" style="color: #fbbf24;"></i></td>
+                        <td style="padding: 1rem; text-align: center; color: var(--text-muted);">${(s.weight || 0.7).toFixed(1)}</td>
+                        <td style="padding: 1rem; text-align: center;"><span style="background: rgba(251, 191, 36, 0.15); color: #fbbf24; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700;">Partial</span></td>
                     </tr>
                 `);
             });
@@ -1555,7 +1712,7 @@
                 `);
             });
 
-            tbody.innerHTML = rows.slice(0, 10).join('');
+            tbody.innerHTML = rows.slice(0, 15).join('');
         }
     }
 
@@ -2067,7 +2224,7 @@
             'finalizing': 'Finalizing Intelligent Report...'
         };
         const message = steps[data.step] || data.message;
-        updateStatus(message, 'info');
+        showToast(message, 'info');
     });
     function appendMessage(role, text) {
         const msgs = $('#chatMessages');

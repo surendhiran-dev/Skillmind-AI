@@ -43,7 +43,7 @@ def start_quiz():
     if len(skill_names) > 15:
         skill_names = random.sample(skill_names, 15)
         
-    questions = generate_questions(skill_names)
+    questions = generate_questions(skill_names, jd_text)
     return jsonify({"questions": questions}), 200
 
 @quiz_bp.route('/submit', methods=['POST'])

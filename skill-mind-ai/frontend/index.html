@@ -46,13 +46,13 @@
                 <form action="#" id="loginFormInner">
                     <div class="field-wrapper slide-element">
                         <input type="text" id="loginUsername" autocomplete="off" required>
-                        <label for="">Username</label>
+                        <label for="loginUsername">Username</label>
                         <i class="fa-solid fa-user"></i>
                     </div>
 
                     <div class="field-wrapper slide-element">
                         <input type="password" id="loginPassword" autocomplete="off" required>
-                        <label for="">Password</label>
+                        <label for="loginPassword">Password</label>
                         <i class="fa-solid fa-lock"></i>
                         <i class="fa-solid fa-eye toggle-password" data-target="loginPassword"
                             style="cursor: pointer; right: 25px; font-size: 14px; opacity: 0.7;"></i>
@@ -146,19 +146,19 @@
                 <form action="#" id="registerFormInner">
                     <div class="field-wrapper slide-element">
                         <input type="text" id="regUsername" autocomplete="off" required>
-                        <label for="">Username</label>
+                        <label for="regUsername">Username</label>
                         <i class="fa-solid fa-user"></i>
                     </div>
 
                     <div class="field-wrapper slide-element">
                         <input type="email" id="regEmail" autocomplete="off" required>
-                        <label for="">Email</label>
+                        <label for="regEmail">Email</label>
                         <i class="fa-solid fa-envelope"></i>
                     </div>
 
                     <div class="field-wrapper slide-element" id="otpWrapper">
                         <input type="text" id="regOTP" autocomplete="off" required>
-                        <label for="">OTP Code</label>
+                        <label for="regOTP">OTP Code</label>
                         <i class="fa-solid fa-key"></i>
                         <div id="otpTimerWrap"
                             style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px;">
@@ -172,7 +172,7 @@
 
                     <div class="field-wrapper slide-element">
                         <input type="password" id="regPassword" autocomplete="off" required>
-                        <label for="">Password</label>
+                        <label for="regPassword">Password</label>
                         <i class="fa-solid fa-lock"></i>
                         <i class="fa-solid fa-eye toggle-password" data-target="regPassword"
                             style="cursor: pointer; right: 25px; font-size: 14px; opacity: 0.7;"></i>
@@ -377,6 +377,10 @@
                         Method: Weighted Cosine Similarity</div>
                 </div>
 
+                <div id="comparisonContent"
+                    style="padding: 1.5rem; display: grid; grid-template-columns: 1fr; gap: 1rem;"></div>
+
+
                 <!-- Match Percentage Breakdown -->
                 <div id="matchBreakdown" style="padding: 0 1.5rem; margin-bottom: 2rem;">
                     <div
@@ -385,13 +389,14 @@
                                 style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">0%</span></h4>
                     </div>
                     <div class="breakdown-grid"
-                        style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <!-- Technical -->
                         <div class="breakdown-item"
                             style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
                             <div
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                 <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">
-                                    Technical (40%)</div>
+                                    Technical (30%)</div>
                                 <div id="techMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%
                                 </div>
                             </div>
@@ -402,21 +407,40 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Experience -->
                         <div class="breakdown-item"
                             style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
                             <div
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                 <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">
-                                    Experience (30%)</div>
+                                    Experience (10%)</div>
                                 <div id="expMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%</div>
                             </div>
                             <div class="mini-bar"
                                 style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
                                 <div id="expMatchBar"
-                                    style="height: 100%; width: 0%; background: #a855f7; transition: width 1s ease;">
+                                    style="height: 100%; width: 0%; background: var(--accent); transition: width 1s ease;">
                                 </div>
                             </div>
                         </div>
+                        <!-- Projects -->
+                        <div class="breakdown-item"
+                            style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">
+                                    Projects (35%)</div>
+                                <div id="projMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%
+                                </div>
+                            </div>
+                            <div class="mini-bar"
+                                style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                                <div id="projMatchBar"
+                                    style="height: 100%; width: 0%; background: #10b981; transition: width 1s ease;">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Education -->
                         <div class="breakdown-item"
                             style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
                             <div
@@ -432,18 +456,19 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Certifications -->
                         <div class="breakdown-item"
                             style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
                             <div
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                 <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">
-                                    Soft Skills (10%)</div>
-                                <div id="softMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%
+                                    Certs (5%)</div>
+                                <div id="certMatchScore" style="font-size: 1rem; font-weight: 700; color: #fff;">0%
                                 </div>
                             </div>
                             <div class="mini-bar"
                                 style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
-                                <div id="softMatchBar"
+                                <div id="certMatchBar"
                                     style="height: 100%; width: 0%; background: #f59e0b; transition: width 1s ease;">
                                 </div>
                             </div>
@@ -578,6 +603,29 @@
                                 style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                                 <!-- Filled by JS -->
                             </div>
+                        </div>
+
+                        <!-- NEW: Resume Error Report Panel -->
+                        <div id="resumeErrorReport" class="hidden"
+                            style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--glass-border);">
+                            <h4 style="margin-bottom: 1.2rem; font-size: 1.1rem; color: var(--danger);">Resume Error &
+                                Improvement Report</h4>
+                            <div id="errorReportContent" style="display: flex; flex-direction: column; gap: 0.8rem;">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+
+                        <!-- NEW: Resume Quality Heatmap -->
+                        <div id="resumeHeatmapSection" class="hidden"
+                            style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--glass-border);">
+                            <h4 style="margin-bottom: 1.2rem; font-size: 1.1rem; color: var(--warning);">Resume Quality
+                                Heatmap</h4>
+                            <div id="resumeHeatmap"
+                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px;">
+                                <!-- Filled by JS -->
+                            </div>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px;">Detailed
+                                section-wise quality scoring for structure, clarity and impact.</p>
                         </div>
                     </div>
                 </div>

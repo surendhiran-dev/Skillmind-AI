@@ -1,68 +1,174 @@
 import os
+import re
 import json
 import logging
 import functools
-import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# BERT-based NER structure for resume skill extraction
-# T5-based sequence-to-sequence structure for quiz question generation
-# Transformer-based evaluation model for coding logic
-# Transformer-based follow-up generation for HR interview
-
-HAS_GEMINI = False
+HAS_OPENROUTER = False
+HAS_AI = False
+client = None
+DEFAULT_MODEL = "openai/gpt-3.5-turbo"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure Gemini
-def configure_genai():
-    global HAS_GEMINI
+# Configure AI Providers
+def configure_ai():
+    global HAS_OPENROUTER, HAS_AI, client, DEFAULT_MODEL
     # Re-load to ensure we get latest from file if needed
     load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-    api_key = os.getenv("GOOGLE_API_KEY")
     
-    if api_key and api_key != "your_gemini_api_key_here":
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key and openai_key.startswith("sk-or-v1"):
         try:
-            genai.configure(api_key=api_key)
-            HAS_GEMINI = True
-            logger.info("Gemini AI successfully configured.")
+            client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=openai_key,
+            )
+            HAS_OPENROUTER = True
+            HAS_AI = True
+            logger.info("OpenRouter AI successfully configured.")
         except Exception as e:
-            logger.error(f"Failed to configure Gemini: {e}")
-            HAS_GEMINI = False
-    else:
-        HAS_GEMINI = False
-        logger.warning("GOOGLE_API_KEY not found or default. AI Service will run in MOCK mode.")
+            logger.error(f"Failed to configure OpenRouter: {e}")
+            
+    if not HAS_AI:
+        logger.warning("No OpenRouter API key configured. AI Service will run in LOCAL/MOCK mode.")
 
-configure_genai()
+configure_ai()
 
-def call_gemini(prompt, system_instruction=None):
-    """Generic helper to call Gemini and return text."""
-    if not HAS_GEMINI:
-        logger.debug("call_gemini skipped: HAS_GEMINI is False")
+def call_ai(prompt, system_instruction=None):
+    """Call OpenRouter and return text."""
+    if not HAS_OPENROUTER:
+        logger.debug("call_ai skipped: OpenRouter not configured")
         return None
     
     try:
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro"
-        )
-        # Add system instructions to prompt if instruction is provided
-        full_prompt = prompt
+        messages = []
         if system_instruction:
-            full_prompt = f"{system_instruction}\n\n{prompt}"
-            
-        response = model.generate_content(full_prompt, request_options={"timeout": 30})
-        if not response or not hasattr(response, 'text') or not response.text:
-            logger.warning("Gemini returned empty or invalid response.")
-            return get_mock_response(prompt)
-            
-        return response.text
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+        
+        completion = client.chat.completions.create(
+            extra_headers={
+                "HTTP-Referer": "http://localhost:5000",
+                "X-OpenRouter-Title": "SkillMind AI",
+            },
+            model=DEFAULT_MODEL,
+            messages=messages,
+        )
+        return completion.choices[0].message.content
     except Exception as e:
-        logger.error(f"Error calling Gemini: {e}")
-        return get_mock_response(prompt)
+        logger.error(f"Error calling OpenRouter: {e}")
+        return None
+
+# Comprehensive Local Skill Library for Fallback Extraction
+SKILL_LIBRARY = {
+    "Technical": [
+        "Python", "Java", "JavaScript", "C++", "C#", "SQL", "NoSQL", "React", "Angular", "Vue", "Node.js", 
+        "AWS", "Azure", "GCP", "Docker", "Kubernetes", "CI/CD", "Git", "Machine Learning", "Deep Learning",
+        "TensorFlow", "PyTorch", "Pandas", "NumPy", "Scikit-Learn", "FastAPI", "Flask", "Django", "MongoDB",
+        "PostgreSQL", "Redis", "Elasticsearch", "Spark", "Hadoop", "Tableau", "PowerBI", "R", "Go", "Rust",
+        "TypeScript", "HTML", "CSS", "Sass", "Tailwind", "REST API", "GraphQL"
+    ],
+    "Soft": [
+        "Communication", "Leadership", "Teamwork", "Problem Solving", "Critical Thinking", "Adaptability",
+        "Time Management", "Emotional Intelligence", "Public Speaking", "Writing", "Project Management", "Agile"
+    ],
+    "Experience": [
+        "Senior", "Lead", "Architect", "Manager", "Developer", "Engineer", "Analyst", "Intern", "Junior", "Associate"
+    ]
+}
+
+def local_extract_skills(text):
+    """Fallback skill extraction using keyword matching."""
+    if not text: return {"Technical": [], "Soft": []}
+    text_lower = text.lower()
+    found = {"Technical": [], "Soft": []}
+    
+    for category in ["Technical", "Soft"]:
+        for skill in SKILL_LIBRARY[category]:
+            # Regex for better matching:
+            # If skill has special chars (e.g. C++, C#), don't use \b boundaries on both sides
+            if any(c in skill for c in "+#.-"):
+                pattern = re.escape(skill.lower())
+            else:
+                pattern = r'\b' + re.escape(skill.lower()) + r'\b'
+                
+            import re
+            if re.search(pattern, text_lower):
+                found[category].append({"skill": skill, "confidence": 0.7})
+    return found
+
+def local_calculate_job_fit(resume_text, jd_text):
+    """Fallback matching logic using local extraction."""
+    logger.info(f"DEBUG: Local Fit. Resume Len: {len(resume_text)}, JD Len: {len(jd_text)}")
+    
+    res_skills = local_extract_skills(resume_text)
+    jd_skills = local_extract_skills(jd_text)
+    
+    # Debug logging as previously implemented
+    print(f"DEBUG: Extracted Resume Skills: {res_skills}")
+    print(f"DEBUG: Extracted JD Skills: {jd_skills}")
+    
+    res_tech = {s['skill'].lower() for s in res_skills['Technical']}
+    jd_tech = {s['skill'].lower() for s in jd_skills['Technical']}
+    
+    matching = [s for s in jd_skills['Technical'] if s['skill'].lower() in res_tech]
+    missing = [s for s in jd_skills['Technical'] if s['skill'].lower() not in res_tech]
+    
+    if not jd_skills['Technical']:
+        # Improved fallback for short JDs (3-tier matching)
+        resume_lower = resume_text.lower()
+        jd_lower = jd_text.strip().lower()
+        
+        # Step 1: Try exact phrase match
+        if jd_lower and jd_lower in resume_lower:
+            match_score = min(65, 50 + len(jd_lower))
+            insights = f"Local Analysis: Exact phrase '{jd_text.strip()}' found in resume."
+        else:
+            # Step 2: Try bigrams
+            jd_words = [w.strip().lower() for w in jd_text.split() if len(w.strip()) > 2]
+            bigrams = [f"{jd_words[i]} {jd_words[i+1]}" for i in range(len(jd_words) - 1)]
+            found_bigrams = [bg for bg in bigrams if bg in resume_lower]
+            
+            # Step 3: Individual words
+            found_words = [w for w in jd_words if w in resume_lower]
+            
+            if found_bigrams:
+                match_score = min(60, (len(found_bigrams) / max(len(bigrams), 1)) * 100 + 15)
+                insights = f"Local Analysis: Found matching phrases: {', '.join(found_bigrams[:5])}."
+            elif found_words:
+                match_score = min(55, (len(found_words) / len(jd_words)) * 100) if jd_words else 20
+                insights = f"Local Analysis: Found matching terms: {', '.join(found_words[:5])}."
+            else:
+                match_score = 10
+                insights = "Local Analysis: No direct matches found."
+    else:
+        match_score = (len(matching) / len(jd_skills['Technical']) * 100)
+        insights = "Local Analysis: Results based on keyword similarity indexing."
+
+    print(f"DEBUG: Raw Similarity Score: {match_score}")
+
+    return {
+        "match_score": round(match_score, 1),
+        "matching_skills": [s['skill'] for s in matching],
+        "missing_skills": [s['skill'] for s in missing],
+        "breakdown": {
+            "technical": round(match_score, 1),
+            "experience": 50 if any(k.lower() in resume_text.lower() for k in ["Senior", "Lead", "Architect", "Manager", "Years"]) else 30,
+            "education": 70 if any(k.lower() in resume_text.lower() for k in ["Degree", "Bachelor", "B.E", "B.Tech", "Master"]) else 40,
+            "soft_skills": 60 if res_skills['Soft'] else 40
+        },
+        "insights": insights,
+        "method": "Local Keyword Extraction"
+    }
+
+# Removed call_gemini
 
 def get_mock_response(prompt):
     """Provides a safe structural fallback when Gemini fails."""
@@ -122,7 +228,7 @@ def analyze_resume_llm(resume_text):
     {resume_text}
     """
     
-    response_text = call_gemini(prompt, system_prompt)
+    response_text = call_ai(prompt, system_prompt)
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
@@ -139,7 +245,7 @@ def analyze_resume_llm(resume_text):
 
 def analyze_match_explanation_llm(resume_text, jd_text, match_score):
     """Calculate specific skill contributions and gaps for explainability."""
-    if not HAS_GEMINI:
+    if not HAS_AI:
         return []
 
     prompt = f"""
@@ -156,7 +262,7 @@ def analyze_match_explanation_llm(resume_text, jd_text, match_score):
         {{ "skill": "System Design", "type": "gap", "impact": -15, "reason": "Critical missing architecture skill" }}
     ]
     """
-    response_text = call_gemini(prompt, "You are an explainable AI (XAI) engine for recruiter transparency.")
+    response_text = call_ai(prompt, "You are an explainable AI (XAI) engine for recruiter transparency.")
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
@@ -166,7 +272,7 @@ def analyze_match_explanation_llm(resume_text, jd_text, match_score):
 
 def generate_skill_gap_recommendations_llm(missing_skills):
     """Suggest targeted learning paths for missing skills."""
-    if not HAS_GEMINI or not missing_skills:
+    if not HAS_AI or not missing_skills:
         return []
 
     prompt = f"""
@@ -180,7 +286,7 @@ def generate_skill_gap_recommendations_llm(missing_skills):
         {{ "skill": "System Design", "platform": "Educative.io", "boost": 15, "action": "Master high-level architecture patterns" }}
     ]
     """
-    response_text = call_gemini(prompt, "You are a technical career development coach.")
+    response_text = call_ai(prompt, "You are a technical career development coach.")
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
@@ -190,7 +296,7 @@ def generate_skill_gap_recommendations_llm(missing_skills):
 
 def generate_quiz_llm(skills, jd_text=""):
     """Generate professional technical questions based on skills and Optional JD."""
-    if not HAS_GEMINI:
+    if not HAS_AI:
         return None
 
     system_prompt = "You are a senior technical interviewer utilizing a T5 (Text-to-Text) approach for question generation. Convert extracted skills into exactly 15 challenging technical questions."
@@ -211,7 +317,7 @@ def generate_quiz_llm(skills, jd_text=""):
     ]
     """
     
-    response_text = call_gemini(prompt, system_prompt)
+    response_text = call_ai(prompt, system_prompt)
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
@@ -222,7 +328,7 @@ def generate_quiz_llm(skills, jd_text=""):
 
 def generate_coding_challenge_llm(skills, jd_text=""):
     """Generate a dynamic coding challenge based on skills and Optional JD."""
-    if not HAS_GEMINI:
+    if not HAS_AI:
         return None
 
     system_prompt = "You are a lead software engineer. Create high-quality coding challenges with test cases."
@@ -244,7 +350,7 @@ def generate_coding_challenge_llm(skills, jd_text=""):
     }}
     """
     
-    response_text = call_gemini(prompt, system_prompt)
+    response_text = call_ai(prompt, system_prompt)
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
@@ -255,7 +361,7 @@ def generate_coding_challenge_llm(skills, jd_text=""):
 
 def generate_job_recommendations_llm(skills, readiness_score=None):
     """Generate job vacancy recommendations for India based on skills and performance."""
-    if not HAS_GEMINI:
+    if not HAS_AI:
         return [
             {"role": "Software Engineer", "company": "Tech Corp (Mock)", "location": "Bangalore", "link": "https://www.linkedin.com/jobs/search/?keywords=software%20engineer%20bangalore"},
             {"role": "Python Developer", "company": "Data Solutions (Mock)", "location": "Hyderabad", "link": "https://www.naukri.com/python-developer-jobs-in-hyderabad"}
@@ -279,7 +385,7 @@ def generate_job_recommendations_llm(skills, readiness_score=None):
     ]
     """
     
-    response_text = call_gemini(prompt, "You are a career consultant specializing in the Indian tech job market.")
+    response_text = call_ai(prompt, "You are a career consultant specializing in the Indian tech job market.")
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
@@ -291,7 +397,7 @@ def generate_job_recommendations_llm(skills, readiness_score=None):
 @functools.lru_cache(maxsize=50)
 def calculate_job_fit_llm(resume_text, jd_text, role_title="Specified Role"):
     """Calculate job fit using semantic comparison and Cosine Similarity logic."""
-    if not HAS_GEMINI:
+    if not HAS_AI:
         return None
 
     system_prompt = "You are an expert recruitment analyst. Use semantic vector comparison (Cosine Similarity) concepts to calculate fit."
@@ -328,7 +434,7 @@ def calculate_job_fit_llm(resume_text, jd_text, role_title="Specified Role"):
     }}
     """
     
-    response_text = call_gemini(prompt, system_prompt)
+    response_text = call_ai(prompt, system_prompt)
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()
@@ -344,12 +450,7 @@ def calculate_job_fit_llm(resume_text, jd_text, role_title="Specified Role"):
         except Exception as e:
             logger.error(f"Error parsing job fit: {e}")
             
-    return {
-        "match_score": 0,
-        "matches": [],
-        "missing": [],
-        "insights": "AI Analysis failed."
-    }
+    return local_calculate_job_fit(resume_text, jd_text)
 
 def compare_resume_jd_llm(resume_text, jd_text):
     """Perform a deep AI-based comparison between resume and job description."""
@@ -368,7 +469,7 @@ def generate_skill_gap_recommendations_llm(missing_skills):
     Generate strategic advice for candidates based on missing skills.
     Includes projected improvements.
     """
-    if not HAS_GEMINI or not missing_skills:
+    if not HAS_AI or not missing_skills:
         return []
 
     system_prompt = "You are a senior technical recruiter and career coach."
@@ -383,7 +484,7 @@ def generate_skill_gap_recommendations_llm(missing_skills):
     ]
     """
     
-    response_text = call_gemini(prompt, system_prompt)
+    response_text = call_ai(prompt, system_prompt)
     if response_text:
         try:
             clean_json = response_text.replace('```json', '').replace('```', '').strip()

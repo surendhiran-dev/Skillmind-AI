@@ -4,7 +4,7 @@ import sys
 import tempfile
 import os
 import json
-from .ai_service import generate_coding_challenge_llm, HAS_GEMINI
+from .ai_service import generate_coding_challenge_llm, HAS_AI
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coding Problems Bank
@@ -239,7 +239,7 @@ def get_all_problems(jd_text=None):
         })
     
     # 2. Optionally generate a new AI challenge if Gemini is active
-    if HAS_GEMINI and jd_skills:
+    if HAS_AI and jd_skills:
         try:
             ai_p = generate_coding_challenge_llm(jd_skills, jd_text)
             if ai_p:
@@ -267,7 +267,7 @@ def get_challenge_set(jd_text=None):
     all_problems = list(PROBLEMS_BANK)  # Copy so we don't modify the original
     
     # If JD provided, try to generate AI problems to add variety
-    if HAS_GEMINI and jd_text:
+    if HAS_AI and jd_text:
         try:
             from .ai_service import generate_coding_challenge_llm
             jd_skills = []

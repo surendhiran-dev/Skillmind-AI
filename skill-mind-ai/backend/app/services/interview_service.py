@@ -66,14 +66,14 @@ def get_next_question(question_index):
         return HR_QUESTIONS[question_index]
     return None
 
-from .ai_service import call_gemini, HAS_GEMINI
+from .ai_service import call_ai, HAS_AI
 
 def get_ai_response(user_input, context="", question_index=0):
     """
-    Generate conversational HR interview response using Gemini (Instruction-Tuned Transformer).
-    Incorporates logical follow-ups as specified in the technical specifications.
+    Generate conversational HR interview response using Gemini.
+    Focus on evaluating entry-level potential and academic background.
     """
-    if not HAS_GEMINI:
+    if not HAS_AI:
         # Fallback to a simple acknowledgement if no API key
         return {
             "response": "Thank you for sharing that. Can you tell me more about your recent projects?",
@@ -82,12 +82,12 @@ def get_ai_response(user_input, context="", question_index=0):
         }
 
     system_prompt = """
-    You are an expert HR Interviewer utilizing an Instruction-Tuned Transformer model with RLHF optimization.
-    Your goal is to conduct a professional, conversational interview.
+    You are an entry-level HR recruiter.
+    Your goal is to conduct a professional, conversational interview for a fresh graduate or intern.
     
     Guidelines:
     1. Analyze the candidate's last response.
-    2. Ask ONE logical follow-up question that drills deeper into their experience or communication.
+    2. Ask ONE logical follow-up question that drills deeper into their projects, academic learning, or foundational skills.
     3. Stay professional and encouraging.
     4. Keep responses concise.
     """
@@ -105,7 +105,7 @@ def get_ai_response(user_input, context="", question_index=0):
     }}
     """
     
-    response_text = call_gemini(prompt, system_prompt)
+    response_text = call_ai(prompt, system_prompt)
     if response_text:
         try:
             import json

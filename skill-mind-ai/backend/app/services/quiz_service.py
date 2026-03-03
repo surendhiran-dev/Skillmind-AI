@@ -1,5 +1,5 @@
 import random
-from .ai_service import generate_quiz_llm, HAS_GEMINI
+from .ai_service import generate_quiz_llm, HAS_AI
 
 # Pre-built question bank organized by skill and difficulty
 QUESTION_BANK = {
@@ -76,7 +76,7 @@ GENERIC_QUESTIONS = [
 def generate_questions(skills, jd_text=""):
     """Generate technical interview questions using AI (Gemini) or a hardcoded fallback."""
     # Try LLM first
-    if HAS_GEMINI:
+    if HAS_AI:
         try:
             ai_questions = generate_quiz_llm(skills, jd_text)
             if ai_questions:

@@ -6,7 +6,7 @@ import functools
 from .ai_service import (
     analyze_resume_llm, calculate_job_fit_llm, 
     analyze_match_explanation_llm, generate_skill_gap_recommendations_llm,
-    HAS_GEMINI
+    HAS_AI
 )
 
 # Support for PDF and DOCX
@@ -55,6 +55,15 @@ def extract_text_from_file(file_path):
     # Clean formatting noise
     text = re.sub(r'[^\x00-\x7F]+', ' ', text) # Remove non-ASCII
     text = re.sub(r'\s+', ' ', text).strip()
+
+    # Log extraction results
+    if text:
+        print(f"DEBUG: Successfully extracted {len(text)} characters from {file_path}")
+        logging.info(f"Successfully extracted {len(text)} characters from {file_path}")
+    else:
+        print(f"DEBUG: Failed to extract text from {file_path}")
+        logging.error(f"Failed to extract text from {file_path}")
+
     return text
 
 def calculate_resume_strength_score(structured_data=None, skills=None, 
@@ -94,7 +103,7 @@ def calculate_resume_strength_score(structured_data=None, skills=None,
         "experience": breakdown['experience'],
         "projects": breakdown['projects'],
         "education": breakdown['education'],
-        "certification": breakdown['certification']
+        "certification": breakdown['certifications']
     }
 
 def analyze_resume(text):
@@ -109,7 +118,7 @@ def analyze_resume(text):
         "score_breakdown": {}
     }
 
-    if HAS_GEMINI:
+    if HAS_AI:
         ai_data = analyze_resume_llm(text)
         if ai_data:
             result.update(ai_data)
@@ -132,7 +141,7 @@ def analyze_resume(text):
 def compare_skills(resume_skills, jd_text, resume_text=None, role_title="Unspecified Role"):
     """Role-specific job matching engine."""
     match_res = None
-    if HAS_GEMINI and resume_text:
+    if HAS_AI and resume_text:
         match_res = calculate_job_fit_llm(resume_text, jd_text, role_title)
     
     if not match_res:
@@ -150,7 +159,7 @@ def compare_skills(resume_skills, jd_text, resume_text=None, role_title="Unspeci
     # Add Explainability and Recommendations if possible
     explanation = []
     recommendations = []
-    if HAS_GEMINI and resume_text:
+    if HAS_AI and resume_text:
         explanation = analyze_match_explanation_llm(resume_text, jd_text, match_res.get("match_score", 0))
         recommendations = generate_skill_gap_recommendations_llm(match_res.get("missing", []))
 

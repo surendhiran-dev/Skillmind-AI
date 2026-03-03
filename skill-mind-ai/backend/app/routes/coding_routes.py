@@ -15,11 +15,7 @@ coding_bp = Blueprint('coding', __name__)
 @jwt_required()
 def list_problems():
     """Return the list of all coding problems (no test cases). Filter by JD if provided."""
-    jd_text = ''
-    if request.method == 'POST':
-        data = request.get_json() or {}
-        jd_text = data.get('jd', '')
-    
+    jd_text = request.args.get('jd', '') or (request.get_json() or {}).get('jd', '')
     return jsonify({"problems": get_all_problems(jd_text)}), 200
 
 
@@ -29,9 +25,8 @@ def challenge_set():
     """Return 6 random coding problems: 2 easy, 2 medium, 2 hard.
     Each problem carries 5 marks (total 30).
     Problems are shuffled each time to avoid repetition."""
-    data = request.get_json() if request.method == 'POST' else {}
-    jd_text = data.get('jd', '') if data else ''
-    
+    data = request.get_json() or {}
+    jd_text = data.get('jd', '')
     challenges = get_challenge_set(jd_text)
     
     # Return problems without test cases (for security)

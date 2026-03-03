@@ -6,6 +6,6 @@ flask-socketio
 python-dotenv
 werkzeug
 PyPDF2
-google-generativeai
+openai
 eventlet
 numpy
