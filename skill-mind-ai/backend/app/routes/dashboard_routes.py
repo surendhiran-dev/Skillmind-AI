@@ -33,12 +33,13 @@ def get_stats():
             "coding_score": report.coding_score if report else 0,
             "interview_score": report.interview_score if report else 0,
             "resume_strength": report.resume_strength if report else 0,
+            "readiness_level": report.readiness_report if report else "Needs Improvement",
             "marks": {
-                "resume": round((report.resume_strength / 100) * 10, 1) if report else 0,
-                "quiz": round((report.quiz_score / 100) * 30, 1) if report else 0,
-                "coding": round((report.coding_score / 100) * 30, 1) if report else 0,
-                "interview": round((report.interview_score / 100) * 30, 1) if report else 0,
-                "total": round(report.final_score, 1) if report else 0
+                "resume": round(((report.resume_strength or 0) / 100) * 10, 1) if report else 0,
+                "quiz": round(((report.quiz_score or 0) / 100) * 30, 1) if report else 0,
+                "coding": round(((report.coding_score or 0) / 100) * 30, 1) if report else 0,
+                "interview": round(((report.interview_score or 0) / 100) * 30, 1) if report else 0,
+                "total": round(report.final_score or 0, 1) if report else 0
             },
             "analysis": report.skill_gaps if report else [],
         } if report else None,

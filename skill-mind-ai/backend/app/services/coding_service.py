@@ -261,58 +261,64 @@ def get_all_problems(jd_text=None):
 
 def get_challenge_set(jd_text=None):
     """Return exactly 6 problems: 2 easy, 2 medium, 2 hard.
-    Problems are randomized each time to avoid repetition."""
+    Strictly prioritizes dynamic AI generation if available."""
     import random
     
-    all_problems = list(PROBLEMS_BANK)  # Copy so we don't modify the original
+    selected_challenges = []
+    jd_skills = []
     
-    # If JD provided, try to generate AI problems to add variety
-    if HAS_AI and jd_text:
+    # 1. Try to get AI-generated challenges first
+    if HAS_AI:
         try:
-            from .ai_service import generate_coding_challenge_llm
-            jd_skills = []
-            try:
-                from .resume_service import analyze_resume
-                jd_analysis = analyze_resume(jd_text)
-                jd_skills = jd_analysis.get('skills', [])
-            except Exception:
-                pass
+            from .resume_service import analyze_resume
+            jd_analysis = analyze_resume(jd_text) if jd_text else {}
+            jd_skills = jd_analysis.get('skills', [])
             
-            if jd_skills:
-                ai_p = generate_coding_challenge_llm(jd_skills, jd_text)
-                if ai_p and isinstance(ai_p, dict):
-                    ai_p["id"] = 1000 + random.randint(1, 999)
-                    if ai_p not in all_problems:
-                        all_problems.append(ai_p)
-        except Exception:
-            pass
+            # Generate a few AI challenges to fill the set if possible
+            # We use a seed for variety
+            seed = random.randint(1, 100000)
+            ai_p = generate_coding_challenge_llm(jd_skills, jd_text)
+            if ai_p and isinstance(ai_p, dict):
+                ai_p["id"] = 2000 + random.randint(1, 999)
+                ai_p["is_ai"] = True
+                selected_challenges.append(ai_p)
+                # In a more advanced version, we'd loop to get all 6 via AI
+                # For now, we mix them with bank but prioritize AI.
+        except Exception as e:
+            print(f"AI Coding Generation failed: {e}")
+
+    # 2. Fill remaining from Bank, but filter by tags if skills available
+    all_bank = list(PROBLEMS_BANK)
+    random.shuffle(all_bank)
     
-    # Group by difficulty
-    easy = [p for p in all_problems if p.get("difficulty") == "easy"]
-    medium = [p for p in all_problems if p.get("difficulty") == "medium"]
-    hard = [p for p in all_problems if p.get("difficulty") == "hard"]
+    # Simple selection from bank categories to fill out the 6
+    easy = [p for p in all_bank if p.get("difficulty") == "easy"]
+    medium = [p for p in all_bank if p.get("difficulty") == "medium"]
+    hard = [p for p in all_bank if p.get("difficulty") == "hard"]
     
-    # Shuffle each group
-    random.shuffle(easy)
-    random.shuffle(medium)
-    random.shuffle(hard)
-    
-    # Pick 2 from each difficulty
-    selected = []
-    selected.extend(easy[:2])
-    selected.extend(medium[:2])
-    selected.extend(hard[:2])
-    
-    # If we don't have enough from one category, fill from others
-    remaining = [p for p in all_problems if p not in selected]
-    random.shuffle(remaining)
-    while len(selected) < 6 and remaining:
-        selected.append(remaining.pop(0))
-    
-    # Shuffle the final set so difficulties are mixed
-    random.shuffle(selected)
-    
-    return selected
+    # We want 2,2,2 but we already might have some AI ones
+    target = 6
+    while len(selected_challenges) < target:
+        # Try to fill Easy
+        if len([c for c in selected_challenges if c['difficulty'] == 'easy']) < 2 and easy:
+            selected_challenges.append(easy.pop(0))
+        # Try to fill Medium
+        elif len([c for c in selected_challenges if c['difficulty'] == 'medium']) < 2 and medium:
+            selected_challenges.append(medium.pop(0))
+        # Try to fill Hard
+        elif len([c for c in selected_challenges if c['difficulty'] == 'hard']) < 2 and hard:
+            selected_challenges.append(hard.pop(0))
+        # Fallback to any available
+        elif all_bank:
+            p = all_bank.pop(0)
+            if p not in selected_challenges:
+                selected_challenges.append(p)
+        else:
+            break
+            
+    # Shuffle the final set
+    random.shuffle(selected_challenges)
+    return selected_challenges[:6]
 
 
 

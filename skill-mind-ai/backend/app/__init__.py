@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from flask import Flask, send_from_directory, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -26,7 +27,7 @@ def create_app():
     db.init_app(app)
     jwt.init_app(app)
     socketio.init_app(app)
-    CORS(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
     
     # Debugging JWT
     @jwt.unauthorized_loader
@@ -54,6 +55,32 @@ def create_app():
     def user_lookup_error_callback(_jwt_header, jwt_payload):
         return jsonify({"message": "User not found"}), 404
         
+    @app.errorhandler(404)
+    def handle_404_error(err):
+        return jsonify({"message": "Not Found", "error": str(err)}), 404
+
+    @app.errorhandler(500)
+    def handle_500_error(err):
+        import traceback
+        with open('crash.log', 'a') as f:
+            f.write(f"\n--- 500 Error at {datetime.now()} ---\n")
+            f.write(traceback.format_exc())
+        return jsonify({"message": "Internal Server Error", "error": str(err)}), 500
+
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        from werkzeug.exceptions import HTTPException, NotFound
+        if isinstance(e, NotFound):
+            return jsonify({"message": "File Not Found", "error": str(e)}), 404
+        if isinstance(e, HTTPException):
+            return jsonify({"message": e.description, "error": str(e)}), e.code
+            
+        import traceback
+        with open('crash.log', 'a') as f:
+            f.write(f"\n--- Unhandled Exception at {datetime.now()} ---\n")
+            f.write(traceback.format_exc())
+        return jsonify({"message": "Unhandled Exception", "error": str(e)}), 500
+
     @app.errorhandler(422)
     def handle_422_error(err):
         # Often caused by signature verification failed
@@ -83,14 +110,41 @@ def create_app():
     from .websocket import interview_socket
     
     # Serve frontend static files
-    frontend_dir = os.path.abspath(os.path.join(basedir, '..', '..', 'frontend'))
+    # Try multiple possible locations for frontend
+    possible_frontend_dirs = [
+        os.path.abspath(os.path.join(basedir, '..', '..', 'frontend')),
+        os.path.abspath(os.path.join(basedir, '..', 'frontend')),
+        os.path.abspath(os.path.join(os.getcwd(), 'frontend'))
+    ]
+    
+    frontend_dir = possible_frontend_dirs[0]
+    for d in possible_frontend_dirs:
+        if os.path.exists(os.path.join(d, 'index.html')):
+            frontend_dir = d
+            break
+            
+    print(f"DEBUG: Serving frontend from {frontend_dir}")
 
     @app.route('/')
     def serve_index():
+        if not os.path.exists(os.path.join(frontend_dir, 'index.html')):
+            return jsonify({"message": "Frontend not found", "path": frontend_dir}), 404
         return send_from_directory(frontend_dir, 'index.html')
 
     @app.route('/<path:filename>')
     def serve_static(filename):
+        # Prevent accessing sensitive files
+        if filename in ['.env', 'app.py', 'package.json']:
+            return jsonify({"message": "Access denied"}), 403
+            
+        # If file doesn't exist, return 404 instead of letting send_from_directory raise exception
+        file_path = os.path.join(frontend_dir, filename)
+        if not os.path.exists(file_path):
+            # If it looks like a client-side route (doesn't have an extension), serve index.html
+            if '.' not in filename:
+                return send_from_directory(frontend_dir, 'index.html')
+            return jsonify({"message": f"File {filename} not found", "path": file_path}), 404
+            
         return send_from_directory(frontend_dir, filename)
     
     # Create tables on first run

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
@@ -17,104 +18,116 @@ ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+@resume_bp.route('/test', methods=['GET'])
+def test_route():
+    return jsonify({"message": "Resume routes are live!", "time": str(datetime.now())}), 200
+
 @resume_bp.route('/upload', methods=['POST'])
 @jwt_required()
 def upload_resume():
-    if 'file' not in request.files:
-        return jsonify({"message": "No file part"}), 400
-    
-    file = request.files['file']
-    label = request.form.get('label', 'resume1') 
-    
-    if file.filename == '':
-        return jsonify({"message": "No selected file"}), 400
-    
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(file_path)
+    try:
+        if 'file' not in request.files:
+            return jsonify({"message": "No file part"}), 400
         
-        # 1. Extraction & AI Analysis
-        from .. import socketio
-        socketio.emit('analysis_progress', {'step': 'extract', 'message': 'Extracting Resume Entities...'}, namespace='/')
-        text = extract_text_from_file(file_path)
+        file = request.files['file']
+        label = request.form.get('label', 'resume1') 
         
-        # Step 7: Normalizing Taxonomy (Part of extraction logic)
-        socketio.emit('analysis_progress', {'step': 'normalization', 'message': 'Normalizing Skill Taxonomy...'}, namespace='/')
+        if file.filename == '':
+            return jsonify({"message": "No selected file"}), 400
         
-        # The analyze_resume function now handles the subsequent steps internally
-        analysis = analyze_resume(text) # Assuming analyze_resume is updated to handle the steps
-        
-        # Step 2: Generating Embeddings (This step is likely part of analyze_resume now)
-        socketio.emit('analysis_progress', {'step': 'embedding', 'message': 'Generating AI Embeddings...'}, namespace='/')
-        
-        # Step 3: Calculating Similarity (This step is likely part of analyze_resume now)
-        socketio.emit('analysis_progress', {'step': 'similarity', 'message': 'Calculating Weighted Similarity...'}, namespace='/')
-        
-        # Step 4: Analyzing Skill Gaps (This step is likely part of analyze_resume now)
-        socketio.emit('analysis_progress', {'step': 'gap', 'message': 'Analyzing Intelligent Skill Gaps...'}, namespace='/')
-        
-        # Step 5: Generating Recommendations (This step is likely part of analyze_resume now)
-        socketio.emit('analysis_progress', {'step': 'recommendation', 'message': 'Generating Strategic Recommendations...'}, namespace='/')
-        
-        # Step 6: XAI Reasoning (This step is likely part of analyze_resume now)
-        socketio.emit('analysis_progress', {'step': 'xai', 'message': 'Analyzing Match Reasoning (XAI)...'}, namespace='/')
-        
-        # Step 8: Finalizing
-        socketio.emit('analysis_progress', {'step': 'finalizing', 'message': 'Finalizing Analytical Report...'}, namespace='/')
-        
-        user_id = int(get_jwt_identity())
-        
-        # 2. Database Persistence
-        resume = Resume.query.filter_by(user_id=user_id, label=label).first()
-        if resume:
-            resume.filename = filename
-            resume.extracted_text = text
-            # Update new structured fields
-            resume.structured_data = analysis.get('structured_data')
-            resume.resume_score = analysis.get('resume_score', 0.0)
-            resume.score_breakdown = analysis.get('score_breakdown')
-            resume.skill_confidence = analysis.get('explainability')
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(file_path)
             
-            # Reset skill mapping
-            Skill.query.filter_by(resume_id=resume.id).delete()
+            # 1. Extraction & AI Analysis
+            from .. import socketio
+            socketio.emit('analysis_progress', {'step': 'extract', 'message': 'Extracting Resume Entities...'}, namespace='/')
+            text = extract_text_from_file(file_path)
+            
+            # Step 7: Normalizing Taxonomy (Part of extraction logic)
+            socketio.emit('analysis_progress', {'step': 'normalization', 'message': 'Normalizing Skill Taxonomy...'}, namespace='/')
+            
+            # The analyze_resume function now handles the subsequent steps internally
+            analysis = analyze_resume(text) # Assuming analyze_resume is updated to handle the steps
+            
+            # Step 2: Generating Embeddings (This step is likely part of analyze_resume now)
+            socketio.emit('analysis_progress', {'step': 'embedding', 'message': 'Generating AI Embeddings...'}, namespace='/')
+            
+            # Step 3: Calculating Similarity (This step is likely part of analyze_resume now)
+            socketio.emit('analysis_progress', {'step': 'similarity', 'message': 'Calculating Weighted Similarity...'}, namespace='/')
+            
+            # Step 4: Analyzing Skill Gaps (This step is likely part of analyze_resume now)
+            socketio.emit('analysis_progress', {'step': 'gap', 'message': 'Analyzing Intelligent Skill Gaps...'}, namespace='/')
+            
+            # Step 5: Generating Recommendations (This step is likely part of analyze_resume now)
+            socketio.emit('analysis_progress', {'step': 'recommendation', 'message': 'Generating Strategic Recommendations...'}, namespace='/')
+            
+            # Step 6: XAI Reasoning (This step is likely part of analyze_resume now)
+            socketio.emit('analysis_progress', {'step': 'xai', 'message': 'Analyzing Match Reasoning (XAI)...'}, namespace='/')
+            
+            # Step 8: Finalizing
+            socketio.emit('analysis_progress', {'step': 'finalizing', 'message': 'Finalizing Analytical Report...'}, namespace='/')
+            
+            user_id = int(get_jwt_identity())
+            
+            # 2. Database Persistence
+            resume = Resume.query.filter_by(user_id=user_id, label=label).first()
+            if resume:
+                resume.filename = filename
+                resume.extracted_text = text
+                # Update new structured fields
+                resume.structured_data = analysis.get('structured_data')
+                resume.resume_score = analysis.get('resume_score', 0.0)
+                resume.score_breakdown = analysis.get('score_breakdown')
+                resume.skill_confidence = analysis.get('explainability')
+                resume.uploaded_at = datetime.utcnow()
+                
+                # Reset skill mapping
+                Skill.query.filter_by(resume_id=resume.id).delete()
+            else:
+                resume = Resume(
+                    user_id=user_id, 
+                    filename=filename, 
+                    label=label, 
+                    extracted_text=text,
+                    structured_data=analysis.get('structured_data'),
+                    resume_score=analysis.get('resume_score', 0.0),
+                    score_breakdown=analysis.get('score_breakdown'),
+                    skill_confidence=analysis.get('explainability')
+                )
+                db.session.add(resume)
+            
+            db.session.flush()
+            
+            # Mapping skills for secondary lookup
+            tech_skills = analysis.get('technical_skills', [])
+            soft_skills = analysis.get('soft_skills', [])
+            
+            for s in tech_skills:
+                db.session.add(Skill(resume_id=resume.id, skill_name=s['skill'] if isinstance(s, dict) else s, category='Technical'))
+            for s in soft_skills:
+                db.session.add(Skill(resume_id=resume.id, skill_name=s['skill'] if isinstance(s, dict) else s, category='Soft'))
+            
+            db.session.commit()
+            
+            return jsonify({
+                "message": f"Resume ({label}) analyzed successfully",
+                "score": analysis.get('resume_score'),
+                "breakdown": analysis.get('score_breakdown'),
+                "structured": analysis.get('structured_data'),
+                "skills": [s['skill'] if isinstance(s, dict) else s for s in tech_skills],
+                "technical_skills": tech_skills,
+                "resume_id": resume.id
+            }), 200
         else:
-            resume = Resume(
-                user_id=user_id, 
-                filename=filename, 
-                label=label, 
-                extracted_text=text,
-                structured_data=analysis.get('structured_data'),
-                resume_score=analysis.get('resume_score', 0.0),
-                score_breakdown=analysis.get('score_breakdown'),
-                skill_confidence=analysis.get('explainability')
-            )
-            db.session.add(resume)
-        
-        db.session.flush()
-        
-        # Mapping skills for secondary lookup
-        tech_skills = analysis.get('technical_skills', [])
-        soft_skills = analysis.get('soft_skills', [])
-        
-        for s in tech_skills:
-            db.session.add(Skill(resume_id=resume.id, skill_name=s['skill'] if isinstance(s, dict) else s, category='Technical'))
-        for s in soft_skills:
-            db.session.add(Skill(resume_id=resume.id, skill_name=s['skill'] if isinstance(s, dict) else s, category='Soft'))
-        
-        db.session.commit()
-        
-        return jsonify({
-            "message": f"Resume ({label}) analyzed successfully",
-            "score": analysis.get('resume_score'),
-            "breakdown": analysis.get('score_breakdown'),
-            "structured": analysis.get('structured_data'),
-            "skills": [s['skill'] if isinstance(s, dict) else s for s in tech_skills],
-            "technical_skills": tech_skills,
-            "resume_id": resume.id
-        }), 200
-    else:
-        return jsonify({"message": "Unsupported file format. Use PDF, DOCX, or TXT."}), 400
+            return jsonify({"message": "Unsupported file format. Use PDF, DOCX, or TXT."}), 400
+    except Exception as e:
+        import traceback
+        with open('crash.log', 'a') as f:
+            f.write(f"\n--- Crash in upload_resume at {datetime.now()} ---\n")
+            f.write(traceback.format_exc())
+        return jsonify({"message": "Internal Server Error during upload", "error": str(e)}), 500
 
 @resume_bp.route('/job-fit', methods=['POST'])
 @jwt_required()
@@ -180,7 +193,7 @@ def compare_resumes():
         return jsonify({"message": "No job description provided"}), 400
         
     user_id = int(get_jwt_identity())
-    resumes = Resume.query.filter_by(user_id=user_id).all()
+    resumes = Resume.query.filter_by(user_id=user_id).order_by(Resume.uploaded_at.desc()).all()
     
     if not resumes:
         return jsonify({"message": "No resumes found to compare"}), 400
@@ -201,8 +214,13 @@ def compare_resumes():
             "match_score": comparison['match_score'],
             "matching_skills": comparison['matching_skills'],
             "missing_skills": comparison['missing_skills'],
-            "method": "Cosine Similarity",
-            "insights": comparison.get('insights', "")
+            "partial_skills": comparison.get('partial_skills', []),
+            "breakdown": comparison.get('breakdown', {}),
+            "method": comparison.get('method', "AI Semantic Analysis"),
+            "insights": comparison.get('insights', ""),
+            "resume_score": r.resume_score,
+            "explanation": comparison.get('explanation', []),
+            "recommendations": comparison.get('recommendations', [])
         })
         
     return jsonify({"comparison": report}), 200

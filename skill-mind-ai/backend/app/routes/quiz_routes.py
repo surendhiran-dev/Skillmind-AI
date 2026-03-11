@@ -60,7 +60,8 @@ def submit_quiz():
     
     results = []
     for resp in responses:
-        marks = evaluate_answer(resp['question'], resp['answer'])
+        # Use the correct_answer passed from frontend or stored in question
+        marks = evaluate_answer(resp.get('correct_answer'), resp.get('answer'))
         total_marks += marks
         results.append({
             "question": resp['question'],

@@ -46,6 +46,8 @@ class Quiz(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     skill_category = db.Column(db.String(100))
     score = db.Column(db.Float)
+    duration = db.Column(db.Integer)
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class CodingTest(db.Model):
     __tablename__ = 'coding_tests'
@@ -55,6 +57,8 @@ class CodingTest(db.Model):
     submitted_code = db.Column(db.Text)
     score = db.Column(db.Float)
     quality_report = db.Column(db.JSON)
+    duration = db.Column(db.Integer)
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class HRSession(db.Model):
     __tablename__ = 'hr_sessions'
@@ -63,6 +67,54 @@ class HRSession(db.Model):
     conversation_history = db.Column(db.JSON)
     sentiment_score = db.Column(db.Float)
     final_feedback = db.Column(db.Text)
+    duration = db.Column(db.Integer)
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class InterviewSession(db.Model):
+    __tablename__ = 'interview_sessions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    session_token = db.Column(db.String(64), unique=True)
+    status = db.Column(db.String(20), default='started') # 'started', 'in_progress', 'completed'
+    total_questions = db.Column(db.Integer, default=6)
+    current_question = db.Column(db.Integer, default=0)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ended_at = db.Column(db.DateTime)
+
+class InterviewQA(db.Model):
+    __tablename__ = 'interview_qa'
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('interview_sessions.id'))
+    question_number = db.Column(db.Integer)
+    question_text = db.Column(db.Text)
+    skill_focus = db.Column(db.String(100))
+    question_type = db.Column(db.String(20)) # 'behavioral', 'technical', 'situational', 'follow_up'
+    difficulty = db.Column(db.String(20)) # 'easy', 'medium', 'hard'
+    answer_text = db.Column(db.Text)
+    relevance_score = db.Column(db.Float)
+    depth_score = db.Column(db.Float)
+    communication_score = db.Column(db.Float)
+    confidence_score = db.Column(db.Float)
+    answer_score = db.Column(db.Float)
+    ai_feedback = db.Column(db.Text)
+    asked_at = db.Column(db.DateTime, default=datetime.utcnow)
+    answered_at = db.Column(db.DateTime)
+
+class InterviewReport(db.Model):
+    __tablename__ = 'interview_reports'
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('interview_sessions.id'), unique=True)
+    hr_interview_score = db.Column(db.Float)
+    behavioral_rating = db.Column(db.Float)
+    communication_rating = db.Column(db.Float)
+    technical_rating = db.Column(db.Float)
+    confidence_index = db.Column(db.Float)
+    readiness_level = db.Column(db.String(30)) # 'Strong', 'Moderate', 'Needs Improvement'
+    top_strengths = db.Column(db.Text) # Stored as comma-separated string or JSON
+    improvement_areas = db.Column(db.Text)
+    ai_summary = db.Column(db.Text)
+    recommendation = db.Column(db.Text)
+    generated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Score(db.Model):
     __tablename__ = 'scores'

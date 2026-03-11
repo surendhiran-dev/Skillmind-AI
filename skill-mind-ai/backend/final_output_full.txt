@@ -1,0 +1,59 @@
+d:\finalcode\skill-mind
+-ai\backend\.venv\Scrip
+ts\python.exe : INFO:ap
+p.services.ai_service:A
+I configurations 
+initialized. Overall 
+AI: True
+At line:1 char:1
++ d:\finalcode\skill-mi
+nd-ai\backend\.venv\Scr
+ipts\python.exe 
+final_ver ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (INFO:app.serv   
+ ic...verall AI: Tr    
+ue:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+INFO:httpx:HTTP 
+Request: POST https://o
+penrouter.ai/api/v1/cha
+t/completions 
+"HTTP/1.1 402 Payment 
+Required"
+ERROR:app.services.ai_s
+ervice:Error calling 
+resume AI: Error code: 
+402 - {'error': 
+{'message': 'This 
+request requires more 
+credits, or fewer 
+max_tokens. You 
+requested up to 16384 
+tokens, but can only 
+afford 510. To 
+increase, visit https:/
+/openrouter.ai/settings
+/credits and upgrade 
+to a paid account', 
+'code': 402, 
+'metadata': 
+{'provider_name': 
+None}}, 'user_id': 'use
+r_38pS3vY8vxyEpyvFD5f6b
+08bY1U'}
+INFO:app.services.ai_se
+rvice:Providing mock 
+response fallback.
+Testing AI call via ai_service...
+Response: AI service unavailable.
+FAILED: AI integration failed to return expected response.

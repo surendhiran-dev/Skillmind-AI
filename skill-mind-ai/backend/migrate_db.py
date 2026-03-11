@@ -10,6 +10,12 @@ with app.app_context():
         print(f"Skipping quizzes.duration: {e}")
 
     try:
+        db.session.execute(text("ALTER TABLE quizzes ADD COLUMN completed_at DATETIME"))
+        print("Added quizzes.completed_at")
+    except Exception as e:
+        print(f"Skipping quizzes.completed_at: {e}")
+
+    try:
         db.session.execute(text("ALTER TABLE coding_tests ADD COLUMN duration INTEGER"))
         print("Added coding_tests.duration")
     except Exception as e:

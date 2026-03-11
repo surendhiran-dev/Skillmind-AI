@@ -6,7 +6,7 @@ import functools
 from .ai_service import (
     analyze_resume_llm, calculate_job_fit_llm, 
     analyze_match_explanation_llm, generate_skill_gap_recommendations_llm,
-    HAS_AI
+    HAS_AI, local_extract_skills
 )
 
 # Support for PDF and DOCX
@@ -99,11 +99,11 @@ def calculate_resume_strength_score(structured_data=None, skills=None,
         final_score, breakdown = calculate_weighted_score(tech_count, experience_years, project_count, has_edu, cert_count)
     
     return final_score, {
-        "diversity": breakdown['technical'],
+        "technical": breakdown['technical'],
         "experience": breakdown['experience'],
         "projects": breakdown['projects'],
         "education": breakdown['education'],
-        "certification": breakdown['certifications']
+        "certifications": breakdown['certifications']
     }
 
 def analyze_resume(text):
@@ -122,6 +122,18 @@ def analyze_resume(text):
         ai_data = analyze_resume_llm(text)
         if ai_data:
             result.update(ai_data)
+        else:
+            # Fallback to local extraction if AI fails
+            local_data = local_extract_skills(text)
+            result['technical_skills'] = local_data.get('Technical', [])
+            result['soft_skills'] = local_data.get('Soft', [])
+            result['skills'] = [s['skill'] if isinstance(s, dict) else s for s in result['technical_skills']]
+    else:
+        # Fallback to local extraction if HAS_AI is False
+        local_data = local_extract_skills(text)
+        result['technical_skills'] = local_data.get('Technical', [])
+        result['soft_skills'] = local_data.get('Soft', [])
+        result['skills'] = [s['skill'] if isinstance(s, dict) else s for s in result['technical_skills']]
     
     # Calculate Production-Level Strength Score
     sc = result.get('score_components', {}) # Changed raw_analysis to result
@@ -167,8 +179,9 @@ def compare_skills(resume_skills, jd_text, resume_text=None, role_title="Unspeci
         "match_score": match_res.get("match_score", 0),
         "matching_skills": match_res.get("matching_skills", match_res.get("matches", [])),
         "missing_skills": match_res.get("missing_skills", match_res.get("missing", [])),
+        "partial_skills": match_res.get("partial_skills", match_res.get("partial", [])),
         "breakdown": match_res.get("breakdown", {}),
-        "method": match_res.get("method", "Heuristic Profile Matching"),
+        "method": match_res.get("method", "AI Semantic Analysis"),
         "insights": match_res.get("insights", "No insights available."),
         "explanation": explanation,
         "recommendations": recommendations

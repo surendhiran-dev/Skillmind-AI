@@ -22,9 +22,9 @@ def generate_report():
     coding = CodingTest.query.filter_by(user_id=user_id).order_by(CodingTest.id.desc()).first()
     interview = HRSession.query.filter_by(user_id=user_id).order_by(HRSession.id.desc()).first()
     
-    quiz_score = quiz.score if quiz else 0
-    coding_score = coding.score if coding else 0
-    interview_score = interview.sentiment_score * 100 if (interview and interview.sentiment_score) else 0
+    quiz_score = quiz.score if (quiz and quiz.score is not None) else 0
+    coding_score = coding.score if (coding and coding.score is not None) else 0
+    interview_score = (interview.sentiment_score * 100) if (interview and interview.sentiment_score is not None) else 0
     resume_strength = calculate_resume_strength(user_id)
     
     # Weighted Score Aggregation (Total 100 Marks):

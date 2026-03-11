@@ -16,6 +16,9 @@
         crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <!-- Three.js for AI Avatar -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 
 <body>
@@ -363,18 +366,15 @@
                 <div class="card jd-input-card">
                     <h3>Job Description</h3>
                     <textarea id="jdTextArea" class="jd-textarea"
-                        placeholder="Paste the job description here..."></textarea>
-                    <button class="btn-primary btn-full" id="runCompareBtn">Compare & Sync Assessments</button>
+                        placeholder="Please upload a resume first to enable this section..." disabled></textarea>
+                    <button class="btn-primary btn-full" id="runCompareBtn" disabled>Compare & Sync Assessments</button>
                 </div>
             </div>
 
             <!-- Comparison Result -->
             <div id="comparisonResult" class="card hidden">
                 <div class="card-header">
-                    <h3>Advanced JD Match Analytics</h3>
-                    <div id="compMethodLabel"
-                        style="font-size: 0.75rem; color: var(--text-muted); padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 20px;">
-                        Method: Weighted Cosine Similarity</div>
+                    <h3>AI-Powered Resume & Job Compatibility Report</h3>
                 </div>
 
                 <div id="comparisonContent"
@@ -480,8 +480,17 @@
                     style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 2rem; margin-bottom: 2rem; padding: 0 1.5rem;">
                     <div
                         style="background: rgba(255,255,255,0.02); border-radius: 15px; padding: 1.5rem; text-align: center;">
-                        <canvas id="matchMeterChart"></canvas>
-                        <h4 style="margin-top: 1rem; color: var(--primary);">Match Meter</h4>
+                        <div class="speedometer-container">
+                            <div class="speedometer-dial">
+                                <div class="speedometer-ticks"></div>
+                            </div>
+                            <div class="speedometer-needle" id="matchMeterNeedle" style="--rotation: -90deg;"></div>
+                            <div class="speedometer-center"></div>
+                            <div class="speedometer-value-wrap">
+                                <span class="speedometer-value" id="matchMeterValue">0%</span>
+                                <span class="speedometer-label">Match Meter</span>
+                            </div>
+                        </div>
                     </div>
                     <div style="background: rgba(255,255,255,0.02); border-radius: 15px; padding: 1.5rem;">
                         <h4 style="margin-bottom: 1rem; color: var(--primary);">Dynamic Skill Comparison</h4>
@@ -511,22 +520,6 @@
                     </div>
                 </div>
 
-                <!-- Collapsible XAI Section -->
-                <div class="xai-container" style="padding: 0 1.5rem 2rem;">
-                    <details
-                        style="background: rgba(255,255,255,0.02); border-radius: 15px; border: 1px solid var(--glass-border); overflow: hidden;">
-                        <summary
-                            style="padding: 1.2rem; cursor: pointer; color: var(--primary); font-weight: 700; list-style: none; display: flex; justify-content: space-between; align-items: center;">
-                            <span>Why this score? (Explainable AI Insights)</span>
-                            <i class="fas fa-chevron-down" style="font-size: 0.8rem;"></i>
-                        </summary>
-                        <div id="explainabilityContent" style="padding: 1.2rem;">
-                            <div id="xaiList" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
-                                <!-- Filled by JS -->
-                            </div>
-                        </div>
-                    </details>
-                </div>
             </div>
 
             <!-- Advanced Candidate Profile Analysis (Extra Feature) -->
@@ -665,11 +658,12 @@
                             <span class="quiz-skill-tag" id="questionSkill">Python</span>
                         </div>
                         <h2 id="questionText"></h2>
-                        <textarea id="answerInput" class="quiz-textarea"
+                        <div id="quizOptions" class="quiz-options-container"></div>
+                        <textarea id="answerInput" class="quiz-textarea hidden"
                             placeholder="Type your answer here..."></textarea>
                         <div class="quiz-actions">
                             <button class="btn-secondary" id="skipQuestionBtn">Skip</button>
-                            <button class="btn-primary" id="nextQuestionBtn">Submit Answer</button>
+                            <button class="btn-primary" id="nextQuestionBtn" style="pointer-events: auto !important; opacity: 1 !important; z-index: 1000 !important; cursor: pointer !important;">Submit Answer</button>
                         </div>
                     </div>
                 </div>
@@ -705,42 +699,140 @@
             </div>
 
             <!-- Active Coding -->
-            <div id="codingActive" class="hidden" style="padding:0 2rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                    <span id="codingProgress">Question 1 / 6</span>
-                    <span id="codingMarksTracker" style="font-weight:700; color:var(--accent);">Marks: 0/30</span>
+            <div id="codingActive" class="hidden" style="max-width: 1400px; margin: 0 auto; padding: 2rem;">
+                <!-- Header Stats -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                    <span id="codingProgress" style="font-weight: 600; color: var(--text-dim);">Question 1 / 6</span>
+                    <span id="codingMarksTracker"
+                        style="font-weight:700; color:var(--accent); background: rgba(16, 185, 129, 0.1); padding: 0.5rem 1rem; border-radius: 8px;">Marks:
+                        0/30</span>
                 </div>
-                <div class="progress-bar" style="margin-bottom:1.5rem;">
-                    <div id="codingProgressBar" class="progress-fill" style="width:0%"></div>
-                </div>
-                <div class="coding-layout">
-                    <div class="coding-main" style="width:100%;">
-                        <div class="card coding-problem">
+
+                <div class="coding-grid"
+                    style="display: grid; grid-template-columns: 380px 1fr; gap: 1.5rem; align-items: start;">
+
+                    <!-- Left Column: Problem Details -->
+                    <div class="coding-sidebar">
+                        <div class="card" style="padding: 1.5rem; height: calc(100vh - 250px); overflow-y: auto;">
                             <div
-                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                                <h3 id="currentProblemTitle">Problem Title</h3>
-                                <span id="currentProblemDifficulty" class="badge">--</span>
+                                style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.2rem;">
+                                <h2 id="currentProblemTitle" style="margin:0; font-size: 1.5rem;">Problem Title</h2>
+                                <span id="currentProblemDifficulty" class="badge">intermediate</span>
                             </div>
-                            <div id="codingProblem" class="problem-text"></div>
-                            <div id="codingHintsWrap" class="coding-hints hidden">
-                                <h4>Hints</h4>
-                                <ul id="codingHints"></ul>
+
+                            <div id="codingProblem" class="problem-text"
+                                style="color: var(--text-muted); line-height: 1.6; margin-bottom: 2rem;">
+                                <!-- Problem description injected here -->
+                            </div>
+
+                            <!-- Detail Boxes -->
+                            <div class="problem-detail-box" style="margin-bottom: 1.5rem;">
+                                <h4
+                                    style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.5rem;">
+                                    Input Format:</h4>
+                                <div id="inputFormatDisplay"
+                                    style="background: rgba(255,255,255,0.03); padding: 0.8rem; border-radius: 8px; border: 1px solid var(--glass-border); font-size: 0.9rem;">
+                                    Comma-separated integers
+                                </div>
+                            </div>
+
+                            <div class="problem-detail-box" style="margin-bottom: 1.5rem;">
+                                <h4
+                                    style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.5rem;">
+                                    Output Format:</h4>
+                                <div id="outputFormatDisplay"
+                                    style="background: rgba(255,255,255,0.03); padding: 0.8rem; border-radius: 8px; border: 1px solid var(--glass-border); font-size: 0.9rem;">
+                                    Deduplicated array as comma-separated values
+                                </div>
+                            </div>
+
+                            <div class="problem-detail-box" style="margin-bottom: 1.5rem;">
+                                <h4
+                                    style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.5rem;">
+                                    Constraints:</h4>
+                                <ul id="codingConstraints"
+                                    style="margin:0; padding-left: 1.2rem; font-size: 0.9rem; color: var(--text-muted);">
+                                    <li>Array length <= 10000</li>
+                                    <li>Maintain original order</li>
+                                </ul>
+                            </div>
+
+                            <div id="codingExamplesWrap" style="margin-top: 2rem;">
+                                <h4
+                                    style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 1rem;">
+                                    Example Test Cases</h4>
+                                <div id="codingExamplesList">
+                                    <!-- Examples injected here -->
+                                </div>
+                            </div>
+
+                            <div id="codingHintsWrap" class="coding-hints hidden"
+                                style="margin-top: 2rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem;">
+                                <h4
+                                    style="font-size: 0.8rem; text-transform: uppercase; color: var(--primary); margin-bottom: 1rem;">
+                                    Hints</h4>
+                                <ul id="codingHints"
+                                    style="margin: 0; padding-left: 1.2rem; font-size: 0.9rem; color: var(--primary); opacity: 0.8;">
+                                </ul>
                             </div>
                         </div>
-                        <div class="coding-editor-wrap">
-                            <div class="editor-toolbar">
-                                <span>Python 3 — <strong id="codingQuestionLabel">Q1</strong> (5 marks)</span>
-                                <button class="btn-ghost btn-sm" id="resetCodeBtn">Reset</button>
+                    </div>
+
+                    <!-- Right Column: Editor & Console -->
+                    <div class="coding-main" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <!-- Code Editor Card -->
+                        <div class="card coding-editor-card"
+                            style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+                            <div class="editor-toolbar"
+                                style="padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <select id="codingLanguageSelector"
+                                        style="background: var(--bg-dark); color: #fff; border: 1px solid var(--glass-border); border-radius: 6px; padding: 4px 10px; font-size: 0.85rem;">
+                                        <option value="python">Python 3 (Default)</option>
+                                        <option value="javascript">JavaScript (Node.js)</option>
+                                    </select>
+                                    <span style="font-size: 0.75rem; color: var(--text-dim);"><i
+                                            class="fas fa-check-circle"
+                                            style="color: var(--accent); margin-right: 4px;"></i> Auto-saved</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-size: 0.85rem; font-weight: 600;">Question — <strong
+                                            id="codingQuestionLabel">Q1</strong></span>
+                                    <button class="btn-ghost btn-sm" id="resetCodeBtn"
+                                        style="padding: 4px 8px; font-size: 0.75rem;">Reset</button>
+                                </div>
                             </div>
-                            <textarea id="codeEditor" class="code-editor" spellcheck="false"></textarea>
-                            <div class="editor-actions">
-                                <button class="btn-secondary" id="runCodeBtn">Run Tests</button>
-                                <button class="btn-primary" id="submitCodeBtn">Submit & Next →</button>
+                            <textarea id="codeEditor" class="code-editor" spellcheck="false"
+                                style="height: 400px; padding: 1.5rem; font-family: 'Fira Code', 'Courier New', monospace; font-size: 0.95rem; border: none; background: #0d1117; color: #e6edf3;"></textarea>
+                        </div>
+
+                        <!-- Console Output Card -->
+                        <div class="card console-card"
+                            style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+                            <div class="console-toolbar"
+                                style="padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-dim);">Console
+                                    Output</span>
+                                <button class="btn-ghost btn-sm" id="clearConsoleBtn"
+                                    style="padding: 4px 8px; font-size: 0.75rem;">Clear</button>
                             </div>
-                            <div id="codeOutput" class="code-output hidden">
-                                <h4>Results</h4>
-                                <pre id="codeOutputText"></pre>
+                            <div id="codeOutput"
+                                style="height: 200px; padding: 1.2rem; background: #0a0e1a; overflow-y: auto;">
+                                <pre id="codeOutputText"
+                                    style="margin: 0; font-family: 'Fira Code', monospace; font-size: 0.85rem; color: #fff;"></pre>
                             </div>
+                        </div>
+
+                        <!-- Actions Footer -->
+                        <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 0.5rem;">
+                            <button class="btn-secondary" id="runCodeBtn"
+                                style="padding: 0.8rem 2rem; border-radius: 10px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-play" style="font-size: 0.8rem;"></i> Run Code
+                            </button>
+                            <button class="btn-primary" id="submitCodeBtn"
+                                style="padding: 0.8rem 2.5rem; border-radius: 10px; font-weight: 700; background: #10b981; border: none;">
+                                Submit Solution
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -761,54 +853,16 @@
         </div>
 
         <!-- Interview -->
-        <div id="interviewPage" class="page hidden">
-            <div class="page-header">
-                <h1>AI HR Interview</h1>
-                <p>Real-time conversational interview powered by AI</p>
-            </div>
-            <div class="interview-layout">
-                <div class="chat-container card">
-                    <div id="chatMessages" class="chat-messages">
-                        <div class="chat-welcome">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
-                                stroke-width="1.5">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                            </svg>
-                            <h3>AI Interview Room</h3>
-                            <p>Click "Start Interview" to begin your AI-powered HR interview session.</p>
-                            <button class="btn-primary" id="startInterviewBtn">Start Interview</button>
-                        </div>
-                    </div>
-                    <div class="chat-input-wrap hidden" id="chatInputWrap">
-                        <input type="text" id="chatInput" class="chat-input" placeholder="Type your response...">
-                        <button class="btn-primary chat-send" id="sendMsgBtn">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <line x1="22" y1="2" x2="11" y2="13" />
-                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="interview-sidebar">
-                    <div class="card">
-                        <h3>Interview Tips</h3>
-                        <ul class="tips-list">
-                            <li>Be specific and use examples</li>
-                            <li>Structure answers using STAR method</li>
-                            <li>Show enthusiasm and curiosity</li>
-                            <li>Ask clarifying questions when needed</li>
-                        </ul>
-                    </div>
-                    <div class="card">
-                        <h3>Live Sentiment</h3>
-                        <div class="sentiment-display">
-                            <div class="sentiment-emoji" id="sentimentEmoji">😐</div>
-                            <span id="sentimentLabel">Neutral</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <!-- Interview -->
+        <!-- AI HR Interview (React Integration) -->
+        <div id="interviewPage" class="page hidden" style="padding: 0; overflow: hidden; height: calc(100vh - 80px);">
+            <iframe 
+                id="interviewIframe" 
+                src="hr-interview/dist/index.html?v=build_fix_v3" 
+                style="width: 100%; height: 100%; border: none;"
+                allow="microphone; camera; display-capture"
+            ></iframe>
+        </div>
         </div>
     </section>
 
@@ -825,7 +879,8 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="interview_avatar.js"></script>
+    <script src="script.js?v=quiz_final_fix"></script>
 </body>
 
 </html>
