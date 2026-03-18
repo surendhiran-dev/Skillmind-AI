@@ -1,0 +1,85 @@
+{
+    "match_score": 66.67,
+    "matching_skills": [
+        {
+            "skill": "AWS",
+            "weight": 0.4,
+            "impact": 90
+        },
+        {
+            "skill": "Docker",
+            "weight": 0.3,
+            "impact": 80
+        }
+    ],
+    "missing_skills": [
+        {
+            "skill": "React",
+            "weight": 0.2,
+            "impact": 70,
+            "priority": "High"
+        }
+    ],
+    "partial_skills": [],
+    "breakdown": {
+        "technical": 100,
+        "experience": 80,
+        "projects": 0,
+        "education": 50,
+        "certifications": 0
+    },
+    "method": "AI Semantic Analysis",
+    "insights": "The candidate demonstrates a strong match in technical skills (AWS, Docker) and relevant experience but lacks specifics on the required technologies like React mentioned in the job description.",
+    "explanation": [
+        {
+            "skill": "Python",
+            "type": "contributor",
+            "impact": 25,
+            "reason": "Exact match for primary requirement"
+        },
+        {
+            "skill": "AWS",
+            "type": "contributor",
+            "impact": 20,
+            "reason": "Significant match for primary requirement"
+        },
+        {
+            "skill": "Docker",
+            "type": "contributor",
+            "impact": 15,
+            "reason": "Partial match for primary requirement"
+        },
+        {
+            "skill": "React",
+            "type": "gap",
+            "impact": -10,
+            "reason": "Not mentioned in JD but still a relevant skill"
+        },
+        {
+            "skill": "System Design",
+            "type": "gap",
+            "impact": -15,
+            "reason": "Critical missing architecture skill"
+        },
+        {
+            "skill": "Degree in CS",
+            "type": "gap",
+            "impact": -5,
+            "reason": "Mentioned in JD as a requirement"
+        }
+    ],
+    "recommendations": [
+        {
+            "text": "Complete a React online course focused on building real-world projects",
+            "projected_increase": 10
+        },
+        {
+            "text": "Participate in a React hackathon or coding challenge",
+            "projected_increase": 12
+        },
+        {
+            "text": "Contribute to an open-source React project on GitHub",
+            "projected_increase": 15
+        }
+    ]
+}

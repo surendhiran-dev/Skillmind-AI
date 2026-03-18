@@ -149,6 +149,9 @@
                 showToast('Session expired. Please log in again.', 'warning');
                 logout();
             }
+            if (res.status === 422) {
+                showToast('Authentication error. Please logout and login again to refresh your session.', 'error');
+            }
             const errMsg = data.message || `Error ${res.status}`;
             showToast(errMsg, 'error');
             const err = new Error(errMsg);
@@ -174,6 +177,8 @@
     }
 
     function showPage(pageId) {
+        console.log('--- showPage:', pageId, '---');
+        state.activePage = pageId;
         if (!canAccessPage(pageId)) {
             showToast(`Please complete the previous steps first.`, 'warning');
             return;
@@ -186,6 +191,29 @@
         const link = $(`.nav-link[data-view="${pageId}"]`);
         if (link) link.classList.add('active');
 
+        // Hide main navbar if interview and make it full height
+        const navbar = $('.navbar');
+        const interviewContainer = $('#interviewPage');
+        if (pageId === 'interview') {
+            console.log('showPage: Hiding navbar (interview mode)');
+            if (navbar) {
+                navbar.classList.add('hidden');
+                navbar.style.display = 'none';
+            } else {
+                console.warn('showPage: Navbar element NOT found');
+            }
+            if (interviewContainer) interviewContainer.classList.add('full-height');
+            document.body.classList.add('is-interview');
+        } else {
+            console.log('showPage: Showing navbar (standard mode)');
+            if (navbar) {
+                navbar.classList.remove('hidden');
+                navbar.style.display = '';
+            }
+            if (interviewContainer) interviewContainer.classList.remove('full-height');
+            document.body.classList.remove('is-interview');
+        }
+
         // Manage Hardware Access (Commented out as React handles it now)
         /* 
         if (pageId === 'interview') {
@@ -195,25 +223,16 @@
         }
         */
 
-        // NEW: Pass data to iframe if interview page to bypass storage restrictions
+        // Interview page: Init native interview module
         if (pageId === 'interview') {
-            const iframe = $('#interviewIframe');
-            if (iframe) {
-                const token = state.token || sessionStorage.getItem('token');
-                // Get user ID from state or storage
-                let userId = state.user?.id;
-                if (!userId && sessionStorage.getItem('user')) {
-                    try {
-                        userId = JSON.parse(sessionStorage.getItem('user')).id;
-                    } catch (e) {}
-                }
-                
-                if (token && userId) {
-                    const baseUrl = 'hr-interview/dist/index.html';
-                    const version = 'build_fix_v4_storage_bypass';
-                    iframe.src = `${baseUrl}?v=${version}&token=${encodeURIComponent(token)}&user_id=${encodeURIComponent(userId)}`;
-                    console.log('showPage: Injected token/user_id into interview iframe via URL');
-                }
+            const token = state.token || sessionStorage.getItem('token');
+            let userId = state.user?.id;
+            if (!userId && sessionStorage.getItem('user')) {
+                try { userId = JSON.parse(sessionStorage.getItem('user')).id; } catch (e) {}
+            }
+            if (token && userId && typeof Interview !== 'undefined') {
+                Interview.init(token, userId);
+                console.log('showPage: Interview module initialized for user', userId);
             }
         }
 
@@ -839,6 +858,7 @@
 
 
     function enterApp() {
+        console.log('SkillMind AI: Entering App...');
         showView('mainView');
         const greeting = $('#userGreeting');
         if (greeting && state.user) greeting.textContent = `Hi, ${state.user.username}`;
@@ -846,6 +866,18 @@
         sessionStorage.setItem('hasVisited', '1');
         showPage('dashboard');
         loadDashboard();
+
+        // Failsafe: Aggressively hide navbar if in interview
+        setInterval(() => {
+            if (state.activePage === 'interview') {
+                const nav = $('.navbar');
+                if (nav && (nav.style.display !== 'none' || !nav.classList.contains('hidden'))) {
+                    console.log('Failsafe: Force-hiding navbar');
+                    nav.style.display = 'none';
+                    nav.classList.add('hidden');
+                }
+            }
+        }, 800);
     }
 
     function logout() {
@@ -2215,497 +2247,6 @@
         }
     }
 
-    /* ===== AI HUD Interview V2 ===== */
-    let recognition = null;
-    let synth = window.speechSynthesis;
-    let interviewStartTime = null;
-    let timerInterval = null;
-    let cameraStream = null;
-    let audioCtx = null;
-    let analyser = null;
-
-    function getEmotionEmoji(emotion) {
-        const map = { 'Happy': '😊', 'Neutral': '😐', 'Anxious': '😟', 'Confident': '😎', 'Sad': '😢', 'Angry': '😠' };
-        return map[emotion] || '😐';
-    }
-
-    function updateHUDMetrics(ev) {
-        // Emotion Bars
-        const emotions = ['Happy', 'Neutral', 'Surprised', 'Fearful', 'Sad', 'Angry'];
-        emotions.forEach(e => {
-            const val = ev.emotions ? (ev.emotions[e] || 0) : (e === ev.emotion ? 100 : 0);
-            const bar = $(`#bar${e}`);
-            if (bar) bar.style.width = val + '%';
-        });
-
-        $('#dominantEmoji').textContent = getEmotionEmoji(ev.emotion);
-        $('#dominantLabel').textContent = `${ev.emotion || 'Neutral'} (${(ev.confidence * 100 || 100).toFixed(0)}%)`;
-
-        // Speech Bars
-        const speech = ['Comm', 'Conf', 'Fluency', 'Relevance'];
-        speech.forEach(s => {
-            const key = s.toLowerCase() === 'comm' ? 'communication' : s.toLowerCase();
-            const val = (ev[key] || 0) * 100;
-            const bar = $(`#bar${s.charAt(0).toUpperCase() + s.slice(1)}`);
-            const label = $(`#val${s.charAt(0).toUpperCase() + s.slice(1)}`);
-            if (bar) {
-                bar.style.width = val + '%';
-                bar.classList.add('bar-glow-update');
-                setTimeout(() => bar.classList.remove('bar-glow-update'), 800);
-            }
-            if (label) {
-                label.textContent = val.toFixed(0) + '%';
-                label.classList.add('hud-metric-pulse');
-                setTimeout(() => label.classList.remove('hud-metric-pulse'), 600);
-            }
-        });
-    }
-
-    function replayQuestion() {
-        if (synth && state.lastAIQuestion) {
-            synth.cancel();
-            synth.speak(new SpeechSynthesisUtterance(state.lastAIQuestion));
-        }
-    }
-
-    function skipQuestion() {
-        sendMessage();
-    }
-
-    function initInterview() {
-        // Initialize HUD components
-        renderProgressDots();
-
-        // Initialize AI Avatar
-        if (!window.avatarInstance) {
-            window.avatarInstance = new AIAvatarInterviewer('avatarContainer');
-        }
-
-        $('#retryHardwareBtn')?.addEventListener('click', initHardware);
-
-        // Action Buttons
-        $('#startInterviewBtn')?.addEventListener('click', startInterview);
-        $('#submitAnswerBtn')?.addEventListener('click', sendMessage);
-        $('#replayQuestionBtn')?.addEventListener('click', replayQuestion);
-        $('#interviewSkipQuestionBtn')?.addEventListener('click', skipQuestion);
-        $('#quitInterviewBtn')?.addEventListener('click', () => {
-            if (confirm('Are you sure you want to quit the interview? Progress will not be saved.')) {
-                endInterview(true); // pass true to skip the final report if needed, or just end
-            }
-        });
-        $('#interviewNextQuestionBtn')?.addEventListener('click', () => {
-            $('#interviewNextQuestionBtn').disabled = true;
-            // Logic for next question if needed
-        });
-    }
-
-    async function initHardware() {
-        const video = $('#userCameraFeed');
-        const canvas = $('#audioWaveformCanvas');
-        if (!video || !canvas) return;
-        const ctx = canvas.getContext('2d');
-
-        try {
-            console.log('initHardware: Starting initialization...');
-            console.log('Secure Context:', window.isSecureContext);
-            console.log('Browser:', navigator.userAgent);
-
-            // Diagnostics
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                console.log('initHardware: Devices found:', devices.map(d => `${d.kind}: ${d.label}`));
-            } catch (e) { console.warn('initHardware: Could not list devices', e); }
-
-            $('#hardwareOverlay')?.classList.add('hidden');
-
-            // Permission API Check
-            try {
-                if (navigator.permissions) {
-                    const camPerm = await navigator.permissions.query({ name: 'camera' });
-                    const micPerm = await navigator.permissions.query({ name: 'microphone' });
-                    console.log('initHardware: Permission states:', { camera: camPerm.state, microphone: micPerm.state });
-
-                    camPerm.onchange = () => console.log('initHardware: Camera permission changed to', camPerm.state);
-                    micPerm.onchange = () => console.log('initHardware: Microphone permission changed to', micPerm.state);
-                }
-            } catch (e) { console.warn('initHardware: Permissions API not supported or failed', e); }
-
-            if (!window.isSecureContext) {
-                console.warn('initHardware: Not in a secure context.');
-                showToast('Hardware access requires HTTPs or localhost.', 'warning');
-                $('#hardwareOverlay')?.classList.remove('hidden');
-                return;
-            }
-
-            console.log('initHardware: Requesting getUserMedia (both)...');
-            let stream;
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            } catch (bothErr) {
-                console.warn('initHardware: Both failed, trying fallbacks...', bothErr.name);
-                try {
-                    console.log('initHardware: Requesting video-only...');
-                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    showToast('Camera enabled (Microphone failed)', 'warning');
-                } catch (videoErr) {
-                    console.log('initHardware: Video-only failed, requesting audio-only...');
-                    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    showToast('Microphone enabled (Camera failed)', 'warning');
-                }
-            }
-
-            console.log('initHardware: getUserMedia success!', stream.getTracks().map(t => t.kind));
-
-            cameraStream = stream;
-            if (video) video.srcObject = stream;
-
-            // Audio Context for Waveform
-            if (stream.getAudioTracks().length > 0) {
-                console.log('initHardware: Setting up AudioContext...');
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                if (audioCtx.state === 'suspended') await audioCtx.resume();
-
-                const source = audioCtx.createMediaStreamSource(stream);
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
-
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-
-                function draw() {
-                    if (!state.interviewActive && !$('#interviewPage').classList.contains('active')) return;
-                    requestAnimationFrame(draw);
-                    analyser.getByteFrequencyData(dataArray);
-
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                    // Draw baseline
-                    ctx.beginPath();
-                    ctx.strokeStyle = 'rgba(99, 102, 241, 0.2)';
-                    ctx.lineWidth = 1;
-                    ctx.moveTo(0, canvas.height / 2);
-                    ctx.lineTo(canvas.width, canvas.height / 2);
-                    ctx.stroke();
-
-                    // Create Gradient
-                    const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
-                    gradient.addColorStop(0, '#6366f1');
-                    gradient.addColorStop(0.5, '#a78bfa');
-                    gradient.addColorStop(1, '#6366f1');
-
-                    ctx.beginPath();
-                    ctx.lineWidth = 2;
-                    ctx.strokeStyle = gradient;
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-
-                    const sliceWidth = canvas.width * 1.0 / bufferLength;
-                    let x = 0;
-
-                    for (let i = 0; i < bufferLength; i++) {
-                        const v = dataArray[i] / 128.0;
-                        const y = (v * canvas.height / 2) + (canvas.height / 4); // Centered and scaled
-
-                        if (i === 0) {
-                            ctx.moveTo(x, y);
-                        } else {
-                            ctx.lineTo(x, y);
-                        }
-
-                        x += sliceWidth;
-                    }
-
-                    ctx.lineTo(canvas.width, canvas.height / 2);
-                    ctx.stroke();
-                }
-                draw();
-            }
-            console.log('initHardware: Initialization complete.');
-        } catch (err) {
-            console.error('initHardware: FAILED', err);
-            let msg = 'Hardware access denied.';
-            let advice = 'Please enable permissions in settings.';
-
-            if (err.name === 'NotAllowedError') {
-                msg = 'Permission Blocked (Error: NotAllowedError)';
-                advice = 'The browser blocked access. Try visiting <strong style="color:var(--accent)">http://127.0.0.1:5000</strong> or <strong style="color:var(--accent)">http://localhost:8000</strong>. Alternatively, use the "lock" icon in the URL bar to "Reset site settings" and refresh.';
-            } else if (err.name === 'NotFoundError') {
-                msg = 'No microphone or camera found.';
-                advice = 'Ensure your devices are plugged in and recognized by your OS.';
-            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                msg = 'Hardware device already in use.';
-                advice = 'Close other apps (Zoom, Teams, etc.) that might be using your camera.';
-            } else if (err.name === 'OverconstrainedError') {
-                msg = 'Hardware constraints not met.';
-                advice = 'Try using a standard resolution camera.';
-            }
-
-            showToast(msg, 'error');
-            $('#hardwareOverlay')?.classList.remove('hidden');
-            const p = $('#hardwareOverlay p');
-            if (p) p.innerHTML = `<span style="display:block; font-weight:700; color:var(--danger); margin-bottom:8px;">${msg}</span>${advice}`;
-        }
-    }
-
-    function renderProgressDots() {
-        const container = $('#interviewProgressDots');
-        if (!container) return;
-        const total = 10;
-        let html = '';
-        for (let i = 1; i <= total; i++) {
-            const activeClass = i <= state.interviewQuestionIndex + 1 ? 'active' : '';
-            html += `<div class="dot ${activeClass}"></div>`;
-        }
-        container.innerHTML = html;
-    }
-
-    async function startInterview() {
-        if (state.interviewActive) return;
-
-        // Enter Full Screen Mode if possible
-        try {
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen();
-            }
-        } catch (e) { console.warn("Fullscreen failed", e); }
-
-        state.interviewActive = true;
-        state.interviewQuestionIndex = 0;
-        state.interviewStartTime = Date.now();
-        state.interviewEvaluations = [];
-
-        // UI Prep
-        $('#interviewQuestionText').textContent = 'Initialising AI Interviewer...';
-        $('#startInterviewBtn').classList.add('hidden');
-        $('#interviewHUD').classList.remove('hidden'); // Ensure HUD is visible
-
-        startInterviewTimer();
-
-        try {
-            const data = await api('/api/interview/start', {
-                method: 'POST',
-                body: { jd: state.activeJD }
-            });
-            handleAIResponse(data);
-        } catch (err) {
-            console.error('Failed to start interview:', err);
-            showToast('Failed to connect to the interview server.', 'error');
-            state.interviewActive = false;
-        }
-    }
-
-    function startInterviewTimer() {
-        if (timerInterval) clearInterval(timerInterval);
-        const timerEl = $('#interviewTimerDisplay');
-        if (!timerEl) return;
-
-        timerInterval = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - state.interviewStartTime) / 1000);
-            const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
-            const secs = (elapsed % 60).toString().padStart(2, '0');
-            timerEl.textContent = `${mins}:${secs}`;
-        }, 1000);
-    }
-
-    function handleAIResponse(data) {
-        const text = data.message || data.response || "I didn't catch that.";
-        const questionTextEl = $('#interviewQuestionText');
-        if (questionTextEl) questionTextEl.textContent = text;
-        state.lastAIQuestion = text;
-
-        // TTS & Avatar Speak
-        if (synth && text) {
-            synth.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-
-            // Optional: Pick a specific voice
-            const voices = synth.getVoices();
-            const preferredVoice = voices.find(v => v.name.includes('Google UK English Male') || v.name.includes('Natural'));
-            if (preferredVoice) utterance.voice = preferredVoice;
-
-            utterance.onstart = () => {
-                if (window.avatarInstance) window.avatarInstance.speak(text);
-            };
-            utterance.onend = () => {
-                if (window.avatarInstance) window.avatarInstance.stopSpeak();
-            };
-            utterance.onerror = () => {
-                if (window.avatarInstance) window.avatarInstance.stopSpeak();
-            };
-
-            synth.speak(utterance);
-        }
-
-        // Metrics & Sentiment
-        if (data.evaluation) {
-            state.interviewEvaluations.push(data.evaluation);
-            updateHUDMetrics(data.evaluation);
-        }
-
-        // Update Progress Indicator
-        state.interviewQuestionIndex++;
-        const progressText = $('#interviewProgressText');
-        if (progressText) progressText.textContent = `Question ${state.interviewQuestionIndex} / 5`;
-
-        renderProgressDots(state.interviewQuestionIndex, 5);
-
-        // STT - Automatically start listening after AI finishes speaking
-        if (recognition) {
-            setTimeout(() => {
-                if (state.interviewActive) startVoiceRecognition();
-            }, 1000); // Small delay
-        }
-    }
-
-    function startVoiceRecognition() {
-        if (!recognition || !state.interviewActive) return;
-
-        try {
-            recognition.start();
-            $('#liveTranscriptText').textContent = 'Listening...';
-            $('#liveTranscriptText').classList.add('listening');
-        } catch (e) {
-            console.warn("Recognition already started or failed", e);
-        }
-    }
-
-    // Initialize STT if supported
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-        const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-        recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        recognition.onresult = (event) => {
-            let interimTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    $('#liveTranscriptText').textContent = event.results[i][0].transcript;
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
-                    $('#liveTranscriptText').textContent = interimTranscript;
-                }
-            }
-        };
-
-        recognition.onend = () => {
-            $('#liveTranscriptText').classList.remove('listening');
-            // Proactively send message if it's not empty? Or wait for button?
-            // For this spec, we wait for the user to click "Submit" or use a timer.
-        };
-    }
-
-    const sendMessage = async () => {
-        const userMessage = $('#liveTranscriptText').textContent.trim();
-        if (!userMessage || userMessage === 'Listening...' || userMessage === 'Awaiting your response...') {
-            return showToast('Please provide an answer first.', 'warning');
-        }
-
-        // UI state: loading
-        $('#submitAnswerBtn').disabled = true;
-        $('#submitAnswerBtn').innerHTML = '<span class="spinner"></span> Analyzing...';
-
-        try {
-            const data = await api('/api/interview/respond', {
-                method: 'POST',
-                body: { message: userMessage }
-            });
-
-            handleAIResponse(data);
-
-            if (data.is_complete || state.interviewQuestionIndex >= 5) {
-                setTimeout(endInterview, 3000);
-            }
-        } catch (err) {
-            showToast('Failed to send response.', 'error');
-        } finally {
-            $('#submitAnswerBtn').disabled = false;
-            $('#submitAnswerBtn').textContent = 'Submit Answer';
-            $('#liveTranscriptText').textContent = 'Awaiting your response...';
-        }
-    };
-
-    async function endInterview(isQuit = false) {
-        if (timerInterval) clearInterval(timerInterval);
-        state.interviewActive = false;
-
-        stopHardware();
-
-        if (isQuit) {
-            showToast('Interview cancelled.', 'info');
-            $('#interviewHUD').classList.add('hidden');
-            showPage('dashboard');
-            if (document.exitFullscreen) document.exitFullscreen().catch(() => { });
-            return;
-        }
-
-        // Show loading state for report
-        showToast('Interview concluded. Generating final report...', 'info');
-
-        try {
-            const data = await api('/api/interview/end', { method: 'POST' });
-            displayFinalInterviewReport(data);
-        } catch (err) {
-            showToast('Failed to save interview results.', 'error');
-        }
-
-        // Exit full screen
-        if (document.exitFullscreen) document.exitFullscreen().catch(() => { });
-    }
-
-    function displayFinalInterviewReport(data) {
-        // Hide Interview UI and show Dashboard with report overlay
-        $('#interviewHUD').classList.add('hidden');
-        showPage('dashboard');
-
-        const reportOverlay = document.createElement('div');
-        reportOverlay.className = 'report-overlay active';
-        reportOverlay.innerHTML = `
-            <div class="report-modal card glassmorphism">
-                <div class="report-header">
-                    <h2>Final HR Interview Report</h2>
-                    <span class="readiness-tag ${data.readiness_level?.toLowerCase() || 'moderate'}">${data.readiness_level || 'Moderate'}</span>
-                </div>
-                <div class="report-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">HR Score</span>
-                        <span class="stat-value">${data.final_score}/30</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Communication</span>
-                        <span class="stat-value">${(data.avg_metrics?.communication * 10 || 0).toFixed(1)}/10</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Confidence</span>
-                        <span class="stat-value">${((data.avg_metrics?.confidence || 0.7) * 10).toFixed(1)}/10</span>
-                    </div>
-                </div>
-                <p class="report-feedback">"${data.message || 'Thank you for participating in the AI interview.'}"</p>
-                <button class="btn-primary" onclick="this.parentElement.parentElement.remove()">Close Report</button>
-            </div>
-        `;
-        document.body.appendChild(reportOverlay);
-    }
-
-
-    function stopHardware() {
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(t => t.stop());
-            cameraStream = null;
-        }
-        if (audioCtx) {
-            if (audioCtx.state !== 'closed') audioCtx.close();
-            audioCtx = null;
-        }
-        analyser = null;
-        const video = $('#userCameraFeed');
-        if (video) video.srcObject = null;
-    }
-
     /* ===== Scoring / Report ===== */
     function initScoring() {
         $('#generateReportBtn')?.addEventListener('click', async () => {
@@ -2734,7 +2275,6 @@
         initResume();
         initQuiz();
         initCoding();
-        initInterview();
         initScoring();
     });
 })();

@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 
 # AI Module Configurations
 MODULE_CONFIGS = {
-    'resume': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "gpt-4o"},
-    'quiz': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "gpt-4o"},
-    'coding': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "gpt-4o"},
-    'interview': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "claude-3-5-sonnet-20240620"},
-    'default': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "gpt-4o"}
+    'resume': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
+    'quiz': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
+    'coding': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
+    'interview': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
+    'default': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"}
 }
 
 DEFAULT_MODEL = "gpt-4o"
@@ -90,6 +90,23 @@ def configure_ai():
 
 configure_ai()
 
+def clean_json_response(response_text):
+    """Helper to extract and clean JSON from AI responses."""
+    if not response_text:
+        return None
+    try:
+        # Remove markdown code blocks if present
+        clean_json = re.sub(r'```json\s*|\s*```', '', response_text).strip()
+        # Find first { and last } to handle extra text
+        first_brace = clean_json.find('{')
+        last_brace = clean_json.rfind('}')
+        if first_brace != -1 and last_brace != -1:
+            clean_json = clean_json[first_brace:last_brace+1]
+        return json.loads(clean_json)
+    except Exception as e:
+        logger.error(f"JSON parsing error: {e}. Raw: {response_text[:100]}...")
+        return None
+
 def call_ai(prompt, system_instruction=None, module='default'):
     """Call the configured AI provider for a specific module."""
     config = MODULE_CONFIGS.get(module, MODULE_CONFIGS['default'])
@@ -111,21 +128,36 @@ def call_ai(prompt, system_instruction=None, module='default'):
             messages.append({"role": "system", "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
         
+        # Use config model, but handle OpenRouter specific prefixes if needed
+        model = config.get('model', DEFAULT_MODEL)
+        if config['has_or'] and not any(p in model for p in ['/', 'openai/', 'anthropic/', 'google/']):
+            # If it's OpenRouter and model has no provider prefix, and it's a standard model, 
+            # maybe it needs one. But usually config['model'] should be correct.
+            pass
+
         args = {
-            "model": config['model'] if not config['has_or'] else "openai/gpt-3.5-turbo",
+            "model": model,
             "messages": messages,
         }
         
         if config['has_or']:
-            args["extra_headers"] = {
-                "HTTP-Referer": "http://127.0.0.1:5000",
-                "X-OpenRouter-Title": f"SkillMind AI - {module.capitalize()}",
-            }
+            # OpenRouter headers are optional but recommended. 
+            # Removing them for now to ensure absolute minimum configuration for stability.
+            pass
         
+        logger.info(f"Calling AI for {module} using model {model} (OR: {config['has_or']})")
         completion = config['client'].chat.completions.create(**args)
+        
+        if not completion.choices:
+            logger.error(f"Empty AI response for {module}")
+            return None
+            
         return completion.choices[0].message.content
     except Exception as e:
-        logger.error(f"Error calling {module} AI: {e}")
+        logger.error(f"Error calling {module} AI: {str(e)}")
+        # Log the full exception details for debugging
+        import traceback
+        logger.error(traceback.format_exc())
         return None
 
 def call_anthropic(prompt, system_instruction=None):
@@ -423,13 +455,7 @@ def generate_quiz_llm(skills, jd_text=""):
     """
     
     response_text = call_ai(prompt, system_prompt, module='quiz')
-    if response_text:
-        try:
-            clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            return json.loads(clean_json)
-        except Exception as e:
-            logger.error(f"Error parsing Gemini response: {e}")
-    return None
+    return clean_json_response(response_text)
 
 def generate_coding_challenge_llm(skills, jd_text=""):
     """Generate a dynamic coding challenge based on skills and Optional JD."""
@@ -456,13 +482,7 @@ def generate_coding_challenge_llm(skills, jd_text=""):
     """
     
     response_text = call_ai(prompt, system_prompt, module='coding')
-    if response_text:
-        try:
-            clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            return json.loads(clean_json)
-        except Exception as e:
-            logger.error(f"Error parsing Gemini response: {e}")
-    return None
+    return clean_json_response(response_text)
 
 def generate_job_recommendations_llm(skills, readiness_score=None):
     """Generate job vacancy recommendations for India based on skills and performance."""
@@ -491,13 +511,7 @@ def generate_job_recommendations_llm(skills, readiness_score=None):
     """
     
     response_text = call_ai(prompt, "You are a career consultant specializing in the Indian tech job market.", module='resume')
-    if response_text:
-        try:
-            clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            return json.loads(clean_json)
-        except Exception as e:
-            logger.error(f"Error parsing job recommendations: {e}")
-    return []
+    return clean_json_response(response_text) or []
 
 def calculate_job_fit_llm(resume_text, jd_text, role_title="Specified Role"):
     """Calculate job fit using semantic comparison and Cosine Similarity logic."""
@@ -544,10 +558,9 @@ def calculate_job_fit_llm(resume_text, jd_text, role_title="Specified Role"):
     """
     
     response_text = call_ai(prompt, system_prompt, module='resume')
-    if response_text:
+    res = clean_json_response(response_text)
+    if res:
         try:
-            clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            res = json.loads(clean_json)
             # Align with internal service and routes keys - PRESERVE METADATA
             return {
                 "match_score": res.get("match_percentage", 0),
@@ -559,7 +572,7 @@ def calculate_job_fit_llm(resume_text, jd_text, role_title="Specified Role"):
                 "recommendations": res.get("recommendations", [])
             }
         except Exception as e:
-            logger.error(f"Error parsing job fit: {e}")
+            logger.error(f"Error processing job fit: {e}")
             
     return local_calculate_job_fit(resume_text, jd_text)
 

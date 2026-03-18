@@ -2,6 +2,7 @@ import random
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.quiz_service import generate_questions, evaluate_answer
+from ..services.scoring_service import refresh_user_score
 from ..models.models import Skill, Quiz, db, Resume
 
 quiz_bp = Blueprint('quiz', __name__)
@@ -76,6 +77,11 @@ def submit_quiz():
     new_quiz = Quiz(user_id=user_id, skill_category="Mixed", score=score_pct)
     db.session.add(new_quiz)
     db.session.commit()
+    
+    # Update unified score
+    try:
+        refresh_user_score(user_id)
+    except: pass
     
     return jsonify({
         "message": "Quiz submitted",

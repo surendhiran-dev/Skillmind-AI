@@ -1,0 +1,11 @@
+Columns in 'resumes' table:
+(0, 'id', 'INTEGER', 1, None, 1)
+(1, 'user_id', 'INTEGER', 0, None, 0)
+(2, 'filename', 'VARCHAR(255)', 0, None, 0)
+(3, 'label', 'VARCHAR(50)', 0, None, 0)
+(4, 'extracted_text', 'TEXT', 0, None, 0)
+(5, 'uploaded_at', 'DATETIME', 0, None, 0)
+(6, 'structured_data', 'JSON', 0, None, 0)
+(7, 'resume_score', 'FLOAT', 0, '0.0', 0)
+(8, 'score_breakdown', 'JSON', 0, None, 0)
+(9, 'skill_confidence', 'JSON', 0, None, 0)

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from .. import db
 from ..models.models import User, Resume, Score, InterviewSession, InterviewQA, InterviewReport
 from ..services.interview_engine import get_next_question, evaluate_answer, generate_final_report
+from ..services.scoring_service import refresh_user_score
 import secrets
 from datetime import datetime
 import json
@@ -10,24 +11,48 @@ interview_bp = Blueprint('interview', __name__)
 
 # Helper to get candidate context
 def get_candidate_data(user_id):
-    # Fetch from Resume and Score tables
-    resume = Resume.query.filter_by(user_id=user_id).order_by(Resume.uploaded_at.desc()).first()
-    score = Score.query.filter_by(user_id=user_id).order_by(Score.generated_at.desc()).first()
-    user = User.query.get(user_id)
-    
-    if not user:
+    """Helper to get candidate context, handles both int and clerk-style string IDs."""
+    if not user_id:
         return None
         
-    return {
-        "name": user.username,
-        "strong_skills": json.dumps(resume.skill_confidence) if resume and resume.skill_confidence else "N/A",
-        "weak_skills": json.dumps(score.skill_gaps) if score and score.skill_gaps else "N/A",
-        "missing_skills": "N/A", # Heuristic based on JD match if available
-        "resume_score": resume.resume_score if resume else 0,
-        "jd_match_score": score.final_score if score else 0,
-        "quiz_score": score.quiz_score if score else 0,
-        "coding_score": score.coding_score if score else 0
-    }
+    # Handle clerk-style IDs if they are just prefixed integers
+    if isinstance(user_id, str) and user_id.startswith('user_'):
+        try:
+            # Try to extract integer if it's 'user_123'
+            user_id = int(user_id.replace('user_', ''))
+        except (ValueError, TypeError):
+            # If it's a UUID/Hash from Clerk, we'd need a mapping table.
+            # For now, let's try to find by username or email if we had that, 
+            # but here we only have user_id.
+            pass
+
+    # Fetch from models
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            # Fallback: try to find by some other field if user_id is a string
+            if isinstance(user_id, str):
+                user = User.query.filter((User.username == user_id) | (User.email == user_id)).first()
+            
+        if not user:
+            return None
+            
+        resume = Resume.query.filter_by(user_id=user.id).order_by(Resume.uploaded_at.desc()).first()
+        score = Score.query.filter_by(user_id=user.id).order_by(Score.generated_at.desc()).first()
+            
+        return {
+            "name": user.username,
+            "strong_skills": json.dumps(resume.skill_confidence) if resume and resume.skill_confidence else "N/A",
+            "weak_skills": json.dumps(score.skill_gaps) if score and score.skill_gaps else "N/A",
+            "missing_skills": "N/A",
+            "resume_score": resume.resume_score if resume else 0,
+            "jd_match_score": score.final_score if score else 0,
+            "quiz_score": score.quiz_score if score else 0,
+            "coding_score": score.coding_score if score else 0
+        }
+    except Exception as e:
+        print(f"Error fetching candidate data for {user_id}: {e}")
+        return None
 
 @interview_bp.route('/start', methods=['POST'])
 def start_interview():
@@ -50,14 +75,18 @@ def start_interview():
     
     # Greetings from ARIA
     history = ""
-    aria_response = get_next_question(
-        candidate_data, 
-        history, 
-        "Begin the interview. Greet the candidate warmly by name, introduce yourself as ARIA, briefly explain the interview structure (6 questions), then ask your first question."
-    )
+    try:
+        aria_response = get_next_question(
+            candidate_data, 
+            history, 
+            "Begin the interview. Greet the candidate warmly by name, introduce yourself as ARIA, briefly explain the interview structure (6 questions), then ask your first question."
+        )
+    except Exception as e:
+        print(f"ARIA Generation Error: {e}")
+        return jsonify({'error': 'ARIA failed to generate greeting', 'details': str(e)}), 500
     
     if not aria_response:
-        return jsonify({'error': 'ARIA failed to start'}), 500
+        return jsonify({'error': 'ARIA returned empty response'}), 500
         
     session.current_question = 1
     db.session.commit()
@@ -105,10 +134,14 @@ def submit_answer():
     # Let's add 'last_question_text' to InterviewSession or get it from the frontend.
     last_q_text = data.get('question_text', '') 
     
-    eval_result = evaluate_answer(candidate_data, history_str, last_q_text, answer, current_q_num)
+    try:
+        eval_result = evaluate_answer(candidate_data, history_str, last_q_text, answer, current_q_num)
+    except Exception as e:
+        print(f"ARIA Evaluation Error: {e}")
+        return jsonify({'error': 'ARIA evaluation service error', 'details': str(e)}), 500
     
     if not eval_result:
-        return jsonify({'error': 'ARIA failed to evaluate'}), 500
+        return jsonify({'error': 'ARIA failed to produce evaluation'}), 500
         
     # SAVE QA
     qa = InterviewQA(
@@ -165,6 +198,12 @@ def submit_answer():
         session.status = 'completed'
         session.ended_at = datetime.utcnow()
         db.session.commit()
+        
+        # Trigger unified score update for the dashboard
+        try:
+            refresh_user_score(session.user_id)
+        except Exception as e:
+            print(f"Error refreshing user score: {e}")
         
         return jsonify({
             'status': 'complete',

@@ -5,6 +5,7 @@ from ..services.coding_service import (
     run_test_cases, get_all_problems, get_problem_by_id,
     get_challenge_set
 )
+from ..services.scoring_service import refresh_user_score
 from ..models.models import CodingTest, db
 import random
 
@@ -219,6 +220,11 @@ def submit_all_coding():
     )
     db.session.add(summary_test)
     db.session.commit()
+    
+    # Update unified score
+    try:
+        refresh_user_score(user_id)
+    except: pass
     
     return jsonify({
         "message": "All coding challenges submitted",

@@ -1,13 +1,26 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..models.models import Score, Quiz, CodingTest, Resume, Skill, db
+from ..models.models import Score, Quiz, CodingTest, Resume, Skill, User, db
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/stats', methods=['GET'])
 @jwt_required()
 def get_stats():
-    user_id = int(get_jwt_identity())
+    raw_identity = get_jwt_identity()
+    try:
+        # Try to convert to int if it's a numeric string or 'user_123'
+        if isinstance(raw_identity, str) and raw_identity.startswith('user_'):
+            user_id = int(raw_identity.replace('user_', ''))
+        else:
+            user_id = int(raw_identity)
+    except (ValueError, TypeError):
+        # Fallback to string identity if not numeric (e.g. Clerk UUID)
+        # We'd need to find the user by this identity string
+        user = User.query.filter((User.id == raw_identity) | (User.username == raw_identity)).first()
+        if not user:
+             return jsonify({"error": "User identity mapping failed", "identity": raw_identity}), 401
+        user_id = user.id
 
     # Latest report
     report = Score.query.filter_by(user_id=user_id).order_by(Score.generated_at.desc()).first()
@@ -36,12 +49,12 @@ def get_stats():
             "readiness_level": report.readiness_report if report else "Needs Improvement",
             "marks": {
                 "resume": round(((report.resume_strength or 0) / 100) * 10, 1) if report else 0,
-                "quiz": round(((report.quiz_score or 0) / 100) * 30, 1) if report else 0,
-                "coding": round(((report.coding_score or 0) / 100) * 30, 1) if report else 0,
-                "interview": round(((report.interview_score or 0) / 100) * 30, 1) if report else 0,
+                "quiz": round(((report.quiz_score or 0) / 100.0) * 30, 1) if report else 0,
+                "coding": round(((report.coding_score or 0) / 100.0) * 30, 1) if report else 0,
+                "interview": round(((report.interview_score or 0) / 100.0) * 30, 1) if report else 0,
                 "total": round(report.final_score or 0, 1) if report else 0
             },
-            "analysis": report.skill_gaps if report else [],
+            "analysis": report.skill_gaps if report and report.skill_gaps else [],
         } if report else None,
         "quiz_history": [{"score": q.score} for q in quizzes],
         "coding_history": [{"score": c.score, "problem": c.problem_statement} for c in coding_tests],
