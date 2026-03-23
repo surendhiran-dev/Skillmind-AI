@@ -34,7 +34,9 @@
         lastReport: null,
         resumeErrors: [], // New
         qualityMetrics: {}, // New
-        selectedOption: null // New for MCQs
+        selectedOption: null, // New for MCQs
+        codingTimerInterval: null,
+        codingTimeLeft: 600 // 10 minutes in seconds
     };
 
     /* ===== Helpers ===== */
@@ -1844,43 +1846,26 @@
             opt.classList.add('selected');
             state.selectedOption = opt.dataset.value;
 
-            // Explicitly enable submit button when an option is selected
+            // Enable submit button when an option is selected
             const nextBtn = $('#nextQuestionBtn');
-            if (nextBtn) nextBtn.disabled = false;
+            if (nextBtn) {
+                nextBtn.disabled = false;
+                nextBtn.style.opacity = "1";
+                nextBtn.style.pointerEvents = "auto";
+            }
         });
 
-        // Ultimate Failsafe: MutationObserver to keep the button enabled
-        const nextBtn = $('#nextQuestionBtn');
-        if (nextBtn) {
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.type === 'attributes' && mutation.attributeName === 'disabled') {
-                        if (nextBtn.disabled) {
-                            console.log('Force enabling nextQuestionBtn via Observer');
-                            nextBtn.disabled = false;
-                        }
-                    }
-                });
-            });
-            observer.observe(nextBtn, { attributes: true });
-        }
-
-        // Heartbeat Failsafe: Every 100ms, force enable the button if quiz is active
-        setInterval(() => {
-            const quizActive = !$('#quizActive')?.classList.contains('hidden');
-            if (quizActive) {
-                const nextBtn = $('#nextQuestionBtn');
-                if (nextBtn) {
-                    if (nextBtn.disabled) {
-                        console.log('Heartbeat: Force enabling nextQuestionBtn');
-                        nextBtn.disabled = false;
-                    }
-                    // Also force styles just in case
-                    if (nextBtn.style.opacity !== "1") nextBtn.style.opacity = "1";
-                    if (nextBtn.style.pointerEvents !== "auto") nextBtn.style.pointerEvents = "auto";
-                }
+        // Add handler for text input validation
+        $('#answerInput')?.addEventListener('input', (e) => {
+            const nextBtn = $('#nextQuestionBtn');
+            if (nextBtn) {
+                const hasValue = e.target.value.trim().length > 0;
+                nextBtn.disabled = !hasValue;
+                nextBtn.style.opacity = hasValue ? "1" : "0.5";
+                nextBtn.style.pointerEvents = hasValue ? "auto" : "none";
             }
-        }, 100);
+        });
+
     }
 
     async function startQuiz() {
@@ -1911,9 +1896,13 @@
             return;
         }
 
-        // Nuclear fix: always enable submit button
+        // Disable submit button by default for new question
         const nextBtn = $('#nextQuestionBtn');
-        if (nextBtn) nextBtn.disabled = false;
+        if (nextBtn) {
+            nextBtn.disabled = true;
+            nextBtn.style.opacity = "0.5";
+            nextBtn.style.pointerEvents = "none";
+        }
 
         const q = state.quizQuestions[state.quizIndex];
         $('#questionCounter').textContent = `Question ${state.quizIndex + 1} / ${state.quizQuestions.length}`;
@@ -2036,6 +2025,44 @@
             $('#codingResult').classList.add('hidden');
             $('#codingStart').classList.remove('hidden');
         });
+
+        // Language change handler
+        $('#codingLanguageSelector')?.addEventListener('change', (e) => {
+            const lang = e.target.value;
+            const p = state.codingChallenges[state.codingIndex];
+            if (p) {
+                // Warning if editor has content
+                const currentCode = $('#codeEditor').value.trim();
+                const isDirty = currentCode && !currentCode.includes('Write your solution here');
+                
+                if (isDirty) {
+                    if (!confirm('Changing language will reset your current code for this question. Proceed?')) {
+                        e.target.value = state.currentLanguage || 'python';
+                        return;
+                    }
+                }
+                
+                state.currentLanguage = lang;
+                $('#codeEditor').value = getStarterCode(p, lang);
+            }
+        });
+    }
+
+    function getStarterCode(problem, language) {
+        const titleSnake = problem.title.toLowerCase().replace(/\s+/g, '_');
+        
+        switch(language) {
+            case 'javascript':
+                return `function ${titleSnake}(...args) {\n    // Write your solution here\n    return null;\n}\n`;
+            case 'java':
+                return `public class Solution {\n    public Object ${titleSnake}(Object... args) {\n        // Write your solution here\n        return null;\n    }\n}\n`;
+            case 'cpp':
+                return `#include <iostream>\n#include <vector>\n\nclass Solution {\npublic:\n    void ${titleSnake}() {\n        // Write your solution here\n    }\n};\n`;
+            case 'go':
+                return `package main\n\nfunc ${titleSnake}() {\n    // Write your solution here\n}\n`;
+            default:
+                return problem.starter_code || `def ${titleSnake}(*args):\n    # Write your solution here\n    pass\n`;
+        }
     }
 
     async function startCodingAssessment() {
@@ -2051,6 +2078,24 @@
             state.codingIndex = 0;
             state.codingSubmissions = [];
             state.codingTotalMarks = 0;
+            state.detectedLanguages = data.languages || ['python'];
+            state.currentLanguage = 'python';
+
+            // Populate language selector
+            const langSelector = $('#codingLanguageSelector');
+            if (langSelector) {
+                const langMap = {
+                    'python': 'Python 3',
+                    'javascript': 'JavaScript',
+                    'java': 'Java',
+                    'cpp': 'C++',
+                    'go': 'Go'
+                };
+                langSelector.innerHTML = state.detectedLanguages.map(l => 
+                    `<option value="${l}">${langMap[l] || l}</option>`
+                ).join('');
+                langSelector.value = 'python';
+            }
 
             if (state.codingChallenges.length === 0) {
                 throw new Error("No challenges found.");
@@ -2062,6 +2107,53 @@
             $('#codingStart').classList.remove('hidden');
             $('#codingActive').classList.add('hidden');
         }
+    }
+    
+    function startCodingTimer() {
+        stopCodingTimer();
+        state.codingTimeLeft = 600; 
+        updateCodingTimerUI();
+        
+        state.codingTimerInterval = window.setInterval(() => {
+            try {
+                state.codingTimeLeft--;
+                updateCodingTimerUI();
+                
+                if (state.codingTimeLeft <= 0) {
+                    stopCodingTimer();
+                    showToast('Time is up! Submitting your solution...', 'warning');
+                    submitCodeForReview(true);
+                } else if (state.codingTimeLeft === 60) {
+                    showToast('1 minute remaining!', 'warning');
+                    const container = $('#codingTimerContainer');
+                    const timerText = $('#codingTimer');
+                    if (container) container.style.borderColor = 'var(--danger)';
+                    if (timerText) timerText.style.color = 'var(--danger)';
+                }
+            } catch (err) {
+                console.error('Error in coding timer interval:', err);
+            }
+        }, 1000);
+    }
+
+    function stopCodingTimer() {
+        if (state.codingTimerInterval) {
+            window.clearInterval(state.codingTimerInterval);
+            state.codingTimerInterval = null;
+        }
+        // Reset styles
+        const container = $('#codingTimerContainer');
+        const timerText = $('#codingTimer');
+        if (container) container.style.borderColor = 'var(--glass-border)';
+        if (timerText) timerText.style.color = '#fff';
+    }
+
+    function updateCodingTimerUI() {
+        const minutes = Math.floor(state.codingTimeLeft / 60);
+        const seconds = state.codingTimeLeft % 60;
+        const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        const timerEl = $('#codingTimer');
+        if (timerEl) timerEl.textContent = display;
     }
 
     function renderProblem() {
@@ -2127,11 +2219,14 @@
         }
 
         // Set Code in Editor
-        $('#codeEditor').value = p.starter_code || `def ${p.title.toLowerCase().replace(/\s+/g, '_')}(s):\n    # Write your code here\n    pass`;
+        $('#codeEditor').value = getStarterCode(p, state.currentLanguage || 'python');
         $('#codeOutputText').textContent = "";
 
         // Scroll to top
         $('#codeEditor').scrollTop = 0;
+
+        // Start 10-minute timer for this question
+        startCodingTimer();
     }
 
     async function submitCodeForReview(isNext) {
@@ -2186,11 +2281,13 @@
 
                 if (state.codingIndex < state.codingChallenges.length - 1) {
                     state.codingIndex++;
+                    stopCodingTimer(); // Stop before rendering next
                     setTimeout(() => {
                         renderProblem();
                         showToast(`Problem ${state.codingIndex} submitted.`, 'success');
                     }, 1000);
                 } else {
+                    stopCodingTimer();
                     finishCodingAssessment();
                 }
             } else {

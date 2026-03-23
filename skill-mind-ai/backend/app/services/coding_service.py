@@ -4,6 +4,7 @@ import sys
 import tempfile
 import os
 import json
+import random
 from .ai_service import generate_coding_challenge_llm, HAS_AI
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -205,6 +206,62 @@ PROBLEMS_BANK = [
     },
 ]
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Language Support
+# ─────────────────────────────────────────────────────────────────────────────
+
+SUPPORTED_LANGUAGES = {
+    "python": {"name": "Python 3", "ext": "py", "comment": "#"},
+    "javascript": {"name": "JavaScript", "ext": "js", "comment": "//"},
+    "java": {"name": "Java", "ext": "java", "comment": "//"},
+    "cpp": {"name": "C++", "ext": "cpp", "comment": "//"},
+    "go": {"name": "Go", "ext": "go", "comment": "//"},
+}
+
+def detect_languages_from_skills(skills):
+    """Detect programming languages from a list of skills."""
+    detected = ["python"] # Always include Python as default
+    skill_map = {
+        "javascript": "javascript",
+        "node": "javascript",
+        "react": "javascript",
+        "typescript": "javascript",
+        "java": "java",
+        "spring": "java",
+        "cpp": "cpp",
+        "c++": "cpp",
+        "golang": "go",
+        "go": "go"
+    }
+    
+    for skill in skills:
+        s_low = skill.strip().lower()
+        if s_low in skill_map:
+            detected.append(skill_map[s_low])
+            
+    return list(set(detected))
+
+def get_starter_code(problem, language="python"):
+    """Generate boilerplate starter code for a specific language."""
+    title_snake = problem["title"].lower().replace(' ', '_')
+    
+    if language == "python":
+        return problem.get("starter_code", f"def {title_snake}(*args):\n    # Write your solution here\n    pass\n")
+    
+    if language == "javascript":
+        return f"function {title_snake}(...args) {{\n    // Write your solution here\n    return null;\n}}\n"
+    
+    if language == "java":
+        return f"public class Solution {{\n    public Object {title_snake}(Object... args) {{\n        // Write your solution here\n        return null;\n    }}\n}}\n"
+        
+    if language == "cpp":
+        return f"#include <iostream>\n#include <vector>\n\nclass Solution {{\npublic:\n    void {title_snake}() {{\n        // Write your solution here\n    }}\n}};\n"
+
+    if language == "go":
+        return f"package main\n\nfunc {title_snake}() {{\n    // Write your solution here\n}}\n"
+
+    return problem.get("starter_code", "# Write your code here")
+
 
 def get_all_problems(jd_text=None):
     """Return the list of all coding problems. Filter by JD and optionally generate one with AI."""
@@ -246,8 +303,6 @@ def get_all_problems(jd_text=None):
                 ai_p["id"] = 999  # Special ID for AI-generated problems
                 ai_p["is_recommended"] = True
                 problems.append(ai_p)
-                # Temporarily add to PROBLEMS_BANK so it can be retrieved for execution
-                # Note: In a real app, this would be saved to a DB.
                 PROBLEMS_BANK.append(ai_p)
         except Exception:
             pass
@@ -262,8 +317,6 @@ def get_all_problems(jd_text=None):
 def get_challenge_set(jd_text=None):
     """Return exactly 6 problems: 2 easy, 2 medium, 2 hard.
     Strictly prioritizes dynamic AI generation if available."""
-    import random
-    
     selected_challenges = []
     jd_skills = []
     
@@ -274,41 +327,30 @@ def get_challenge_set(jd_text=None):
             jd_analysis = analyze_resume(jd_text) if jd_text else {}
             jd_skills = jd_analysis.get('skills', [])
             
-            # Generate a few AI challenges to fill the set if possible
-            # We use a seed for variety
-            seed = random.randint(1, 100000)
             ai_p = generate_coding_challenge_llm(jd_skills, jd_text)
             if ai_p and isinstance(ai_p, dict):
                 ai_p["id"] = 2000 + random.randint(1, 999)
                 ai_p["is_ai"] = True
                 selected_challenges.append(ai_p)
-                # In a more advanced version, we'd loop to get all 6 via AI
-                # For now, we mix them with bank but prioritize AI.
         except Exception as e:
             print(f"AI Coding Generation failed: {e}")
 
-    # 2. Fill remaining from Bank, but filter by tags if skills available
+    # 2. Fill remaining from Bank
     all_bank = list(PROBLEMS_BANK)
     random.shuffle(all_bank)
     
-    # Simple selection from bank categories to fill out the 6
     easy = [p for p in all_bank if p.get("difficulty") == "easy"]
     medium = [p for p in all_bank if p.get("difficulty") == "medium"]
     hard = [p for p in all_bank if p.get("difficulty") == "hard"]
     
-    # We want 2,2,2 but we already might have some AI ones
     target = 6
     while len(selected_challenges) < target:
-        # Try to fill Easy
         if len([c for c in selected_challenges if c['difficulty'] == 'easy']) < 2 and easy:
             selected_challenges.append(easy.pop(0))
-        # Try to fill Medium
         elif len([c for c in selected_challenges if c['difficulty'] == 'medium']) < 2 and medium:
             selected_challenges.append(medium.pop(0))
-        # Try to fill Hard
         elif len([c for c in selected_challenges if c['difficulty'] == 'hard']) < 2 and hard:
             selected_challenges.append(hard.pop(0))
-        # Fallback to any available
         elif all_bank:
             p = all_bank.pop(0)
             if p not in selected_challenges:
@@ -316,9 +358,12 @@ def get_challenge_set(jd_text=None):
         else:
             break
             
-    # Shuffle the final set
     random.shuffle(selected_challenges)
-    return selected_challenges[:6]
+    
+    return {
+        "challenges": selected_challenges[:6],
+        "languages": detect_languages_from_skills(jd_skills) if jd_skills else ["python"]
+    }
 
 
 

@@ -637,7 +637,7 @@
             <div class="quiz-container">
                 <div id="quizStart" class="card quiz-start-card">
                     <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
-                        stroke-width="1.5">
+                        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10" />
                         <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
                         <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -671,7 +671,12 @@
                     </div>
                 </div>
                 <div id="quizResult" class="card quiz-result-card hidden">
-                    <div class="result-icon">🎉</div>
+                    <div class="result-icon">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-award">
+                            <circle cx="12" cy="8" r="7"></circle>
+                            <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+                        </svg>
+                    </div>
                     <h2>Quiz Complete!</h2>
                     <div class="result-score" id="quizScoreDisplay">--</div>
                     <p id="quizFeedback"></p>
@@ -705,7 +710,16 @@
             <div id="codingActive" class="hidden" style="max-width: 1400px; margin: 0 auto; padding: 2rem;">
                 <!-- Header Stats -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-                    <span id="codingProgress" style="font-weight: 600; color: var(--text-dim);">Question 1 / 6</span>
+                    <div style="display:flex; align-items:center; gap: 8rem;">
+                        <span id="codingProgress" style="font-weight: 600; color: var(--text-dim);">Question 1 / 6</span>
+                        
+                        <!-- Timer moved to marked position (towards left) -->
+                        <div id="codingTimerContainer" style="display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.05); padding: 0.5rem 1.2rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                            <i class="fas fa-clock" style="color: var(--primary); font-size: 0.9rem;"></i>
+                            <span id="codingTimer" style="font-family: 'Fira Code', monospace; font-weight: 700; color: #fff; font-size: 1.1rem; min-width: 60px; text-align: center;">10:00</span>
+                        </div>
+                    </div>
+
                     <span id="codingMarksTracker"
                         style="font-weight:700; color:var(--accent); background: rgba(16, 185, 129, 0.1); padding: 0.5rem 1rem; border-radius: 8px;">Marks:
                         0/30</span>
@@ -859,29 +873,69 @@
         <div id="interviewPage" class="page hidden" style="padding:0;overflow:hidden;position:relative;background:#0d0e14;">
 
           <!-- ── PRE-JOIN SCREEN ── -->
-          <div id="iv-prejoin" class="iv-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:2rem;padding:2rem;">
-            <div id="iv-prejoin-loading" style="color:#9aa0a6;font-size:1rem;">Loading your profile...</div>
-            <div id="iv-prejoin-content" class="hidden" style="text-align:center;max-width:860px;width:100%;">
-              <div style="margin-bottom:1.5rem;">
-                <div style="font-size:0.9rem;font-weight:800;letter-spacing:0.2em;color:#1a73e8;text-transform:uppercase;margin-bottom:0.5rem;">AI HR Interview</div>
-                <h1 style="font-size:2.2rem;font-weight:900;color:#e8eaed;margin:0;">Ready to Interview with <span style="color:#1a73e8;">ARIA</span>?</h1>
-                <p style="color:#9aa0a6;margin-top:0.5rem;font-size:0.95rem;">Your AI interviewer has reviewed your profile and is ready to begin.</p>
+          <div id="iv-prejoin" class="iv-screen iv-prejoin-container">
+            <div id="iv-prejoin-loading" style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p style="color: #94a3b8; font-weight: 500;">Analyzing your profile...</p>
+            </div>
+
+            <div id="iv-prejoin-content" class="iv-prejoin-card" style="display: none;">
+              <div class="iv-prejoin-header">
+                <h1 class="iv-prejoin-title">Ready to Interview with <span>ARIA?</span></h1>
+                <p class="iv-prejoin-subtitle">
+                  Your AI interviewer has reviewed your profile and is ready to begin. 
+                  Below is your current progress across all evaluation modules.
+                </p>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem;">
-                <div class="iv-stat-card"><div class="iv-stat-label">Resume</div><div class="iv-stat-val" id="iv-stat-resume">—</div></div>
-                <div class="iv-stat-card"><div class="iv-stat-label">Quiz</div><div class="iv-stat-val" id="iv-stat-quiz">—</div></div>
-                <div class="iv-stat-card"><div class="iv-stat-label">Coding</div><div class="iv-stat-val" id="iv-stat-coding">—</div></div>
-                <div class="iv-stat-card"><div class="iv-stat-label">Interview</div><div class="iv-stat-val" id="iv-stat-interview">—</div></div>
+
+              <div class="iv-prejoin-grid">
+                <!-- Resume Score -->
+                <div class="iv-stat-card">
+                  <div class="iv-stat-icon"><i class="fas fa-file-alt"></i></div>
+                  <span class="iv-stat-label">Resume</span>
+                  <div id="iv-stat-resume" class="iv-stat-val">--%</div>
+                </div>
+                <!-- Quiz Score -->
+                <div class="iv-stat-card">
+                  <div class="iv-stat-icon"><i class="fas fa-tasks"></i></div>
+                  <span class="iv-stat-label">Quiz</span>
+                  <div id="iv-stat-quiz" class="iv-stat-val">--%</div>
+                </div>
+                <!-- Coding Score -->
+                <div class="iv-stat-card">
+                  <div class="iv-stat-icon"><i class="fas fa-code"></i></div>
+                  <span class="iv-stat-label">Coding</span>
+                  <div id="iv-stat-coding" class="iv-stat-val">--%</div>
+                </div>
+                <!-- Interview Confidence -->
+                <div class="iv-stat-card">
+                  <div class="iv-stat-icon"><i class="fas fa-user-tie"></i></div>
+                  <span class="iv-stat-label">Interview</span>
+                  <div id="iv-stat-interview" class="iv-stat-val">--%</div>
+                </div>
               </div>
-              <div style="margin-bottom:1.5rem;">
-                <div style="font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:0.15em;color:#64748b;margin-bottom:0.6rem;">Your Key Skills</div>
-                <div id="iv-skills-display" style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:center;"></div>
+
+              <div class="iv-skills-wrapper">
+                <h3 style="font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1rem; text-align: center;">Your Key Skills</h3>
+                <div id="iv-skills-display" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem;">
+                  <!-- Skills filled via JS -->
+                </div>
               </div>
-              <div style="display:flex;align-items:center;gap:1rem;padding:1rem;background:rgba(26,115,232,0.06);border:1px solid rgba(26,115,232,0.2);border-radius:1rem;margin-bottom:1.5rem;text-align:left;">
-                <span style="font-size:1.5rem;">📋</span>
-                <div style="font-size:1rem;color:#9aa0a6;line-height:1.6;">ARIA will ask <strong style="color:#e8eaed;">6 questions</strong> based on your skills and background. Ensure your <strong style="color:#e8eaed;">camera and microphone</strong> are enabled and you are in a <strong style="color:#e8eaed;">well-lit, quiet environment</strong>. Only <strong style="color:#e8eaed;">one person</strong> should be visible on camera at all times.</div>
+
+              <div class="iv-info-box">
+                <div class="iv-info-icon"><i class="fas fa-robot"></i></div>
+                <div class="iv-info-text">
+                  ARIA will ask <strong>6 questions</strong> based on your skills and background. 
+                  Ensure your <strong>camera and microphone</strong> are enabled and you are in a <strong>well-lit, quiet environment</strong>. 
+                </div>
               </div>
-              <button id="iv-join-btn" class="iv-join-btn">🎙️ Join Interview Now</button>
+
+              <div class="iv-prejoin-footer">
+                <button id="iv-join-btn" class="iv-join-btn" onclick="Interview.handleJoin()">
+                  <i class="fas fa-play-circle"></i>
+                  Join Interview Now
+                </button>
+              </div>
             </div>
           </div>
 
@@ -951,7 +1005,7 @@
 
 
                 <!-- Audio Waveform Bars -->
-                <div id="iv-audio-wave" style="display:none;position:absolute;top:12px;right:12px;z-index:40;align-items:flex-end;gap:3px;height:28px;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);padding:6px 10px;border-radius:16px;border:1px solid rgba(26,115,232,0.25);">
+                <div id="iv-audio-wave" style="display:none;position:absolute;top:64px;right:12px;z-index:40;align-items:flex-end;gap:3px;height:28px;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);padding:6px 10px;border-radius:16px;border:1px solid rgba(26,115,232,0.25);">
                   <span style="width:4px;background:#1a73e8;border-radius:2px;--d:0.5s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
                   <span style="width:4px;background:#1a73e8;border-radius:2px;--d:0.7s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
                   <span style="width:4px;background:#1a73e8;border-radius:2px;--d:0.4s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
@@ -1029,7 +1083,7 @@
                 <!-- TAP TO ANSWER mic button -->
                 <button id="iv-tap-mic-btn" title="Tap to Answer" style="display:flex;align-items:center;gap:10px;padding:0 24px;height:44px;border-radius:22px;border:1.5px solid rgba(26,115,232,0.6);background:rgba(26,115,232,0.15);color:#7bb3f7;font-size:0.95rem;font-weight:800;letter-spacing:0.04em;cursor:pointer;transition:all .2s;white-space:nowrap;">
                   <span id="iv-tap-mic-icon" style="font-size:1.1rem;"><i class="fas fa-microphone"></i></span>
-                  <span id="iv-tap-mic-label">TAP TO ANSWER</span>
+                  <span id="iv-tap-mic-label">TAP TO START</span>
                 </button>
 
 
@@ -1237,9 +1291,9 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/dist/face-api.js" defer></script>
-    <script src="components/interview.js?v=5" defer></script>
-    <script src="interview_avatar.js?v=5" defer></script>
-    <script src="script.js?v=5" defer></script>
+    <script src="components/interview.js?v=7" defer></script>
+    <script src="interview_avatar.js?v=7" defer></script>
+    <script src="script.js?v=7" defer></script>
 </body>
 
 </html>

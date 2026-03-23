@@ -428,31 +428,36 @@ def generate_quiz_llm(skills, jd_text=""):
         return None
 
     seed = random.randint(1, 1000000)
-    system_prompt = f"You are a senior technical interviewer. Convert extracted skills into exactly 15 UNIQUE and challenging Multiple Choice Questions (MCQs). [Ref: {seed}]"
+    system_prompt = f"You are a sophisticated Technical Assessment Engine. Your goal is to generate 15 high-fidelity, UNIQUE, and skill-diverse MCQs. [Session ID: {seed}]"
     prompt = f"""
-    Task: Convert Skills to exactly 15 MCQs (each worth 2 marks, total 30 marks).
-    Input Skills: {', '.join(skills)}
+    Task: Create exactly 15 unique MCQs based on the following candidate profile.
+    
+    Target Skills: {', '.join(skills)}
     {f"Context Job Description: {jd_text}" if jd_text else ""}
     
-    Requirements:
-    1. Generate exactly 15 questions covering these skills. 
-    2. ZERO REPETITION: Do not use generic or common questions. Every question must be tailored to a specific, complex scenario related to the skill.
-    3. Each question MUST be an MCQ with exactly 4 distinct options.
-    4. Ensure questions are highly relevant to the candidate's backend data and JD context.
-    5. Randomize the difficulty and topics aggressively. Use seed {seed} to ensure variety.
-    6. If a skill has been used before, ask about a different sub-topic or a more advanced concept.
+    Strict Requirements for Uniqueness & Coverage:
+    1. SKILL COVERAGE: Distribute questions across ALL target skills listed above. Do not focus too heavily on one skill.
+    2. ZERO REPETITION: Every question must be fundamentally different. Do not repeat the same concept with slight wording changes.
+    3. DIVERSE SCENARIOS: For each skill, vary the question type:
+       - Architectural/System Design (How components interact)
+       - Debugging/Troubleshooting (Identifying flaws in a logic snippet)
+       - Performance & Best Practices (Optimizing for speed/security)
+    4. COMPLEXITY: Avoid "What is X?" questions. Use scenario-based technical questions.
+    5. RANDOMIZATION: Use seed {seed} as a conceptual anchor to ensure this batch is distinct from any previous generations.
+    6. OPTIONS: Each question must have 4 distinct, plausible options.
 
-    Output Format (JSON array of exactly 15 objects):
+    Return ONLY a JSON array of exactly 15 objects:
     [
         {{
-            "skill": "Specific Skill Name",
-            "question": "A unique, context-specific technical question?",
-            "options": ["Option A", "Option B", "Option C", "Option D"],
-            "answer": "The exact string of the correct option",
-            "difficulty": "easy|medium|hard"
+            "skill": "Specific Skill from Target List",
+            "question": "A deep-dive, scenario-based technical question (max 200 chars)",
+            "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+            "answer": "Exact string of the correct option",
+            "difficulty": "medium|hard"
         }}
     ]
     """
+
     
     response_text = call_ai(prompt, system_prompt, module='quiz')
     return clean_json_response(response_text)

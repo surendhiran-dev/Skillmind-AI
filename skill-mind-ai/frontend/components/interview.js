@@ -21,6 +21,20 @@ const Interview = (() => {
     disgusted: { e: '😤', label: 'Disgusted',  color: '#a78bfa' },
   };
 
+  // ── Profanity Filter ────────────────────────────────
+  const BAD_WORDS = ['fuck', 'shit', 'damn', 'bitch', 'asshole', 'bastard', 'crap', 'hell', 'piss', 'dick'];
+
+  function filterProfanity(text) {
+    if (!text) return '';
+    let filtered = text;
+    BAD_WORDS.forEach(word => {
+      // Precise word boundary matching to avoid masking "classic" as "cl***ic"
+      const reg = new RegExp(`\\b${word}\\b`, 'gi');
+      filtered = filtered.replace(reg, '*'.repeat(word.length));
+    });
+    return filtered;
+  }
+
   // ── State ────────────────────────────────────────────
   let token = '';
   let userId = '';
@@ -48,6 +62,14 @@ const Interview = (() => {
   let confidenceScore = 85;
   let finalTextRef = '';
   let interimTextRef = '';
+  
+  // Advanced Proctoring State
+  let baselineDescriptor = null;
+  let lipDistanceHistory = [];
+  let eyeContactHistory = [];
+  let audioContext = null;
+  let analyser = null;
+  let audioStream = null;
   let faceEngineReady = false;
   let recognition = null;
   let faceInterval = null;
@@ -183,13 +205,13 @@ const Interview = (() => {
     switch (state) {
 
       case 'active':
-        // TAP TO ANSWER: red pulsing, active label
+        // STOP: red pulsing, active label
         if (tapBtn) {
           tapBtn.disabled = false;
           tapBtn.classList.add('mic-active');
           tapBtn.style.opacity = '';
         }
-        if (tapLabel) tapLabel.textContent = 'TAP TO ANSWER';
+        if (tapLabel) tapLabel.textContent = 'STOP';
         if (tapIcon)  tapIcon.innerHTML  = '<i class="fas fa-stop-circle"></i>';
 
         // FINISH ANSWER: hidden while recording to prevent premature clicks
@@ -207,13 +229,13 @@ const Interview = (() => {
         break;
 
       case 'idle':
-        // TAP TO ANSWER: blue, enabled, normal label
+        // TAP TO START: blue, enabled, normal label
         if (tapBtn) {
           tapBtn.disabled = false;
           tapBtn.classList.remove('mic-active');
           tapBtn.style.opacity = '';
         }
-        if (tapLabel) tapLabel.textContent = 'TAP TO ANSWER';
+        if (tapLabel) tapLabel.textContent = 'TAP TO START';
         if (tapIcon)  tapIcon.textContent  = '🎤';
 
         // FINISH ANSWER: Show only if there's content to submit
@@ -235,12 +257,12 @@ const Interview = (() => {
         break;
 
       case 'processing':
-        // TAP TO ANSWER: disabled
+        // STOP: disabled
         if (tapBtn) {
           tapBtn.disabled = true;
           tapBtn.classList.remove('mic-active');
         }
-        if (tapLabel) tapLabel.textContent = 'TAP TO ANSWER';
+        if (tapLabel) tapLabel.textContent = 'STOP';
         if (tapIcon)  tapIcon.textContent  = '🎤';
 
         // FINISH ANSWER: visible but disabled with spinner
@@ -259,12 +281,12 @@ const Interview = (() => {
         break;
 
       case 'aria-speaking':
-        // TAP TO ANSWER: disabled grey
+        // TAP TO START: disabled grey
         if (tapBtn) {
           tapBtn.disabled = true;
           tapBtn.classList.remove('mic-active');
         }
-        if (tapLabel) tapLabel.textContent = 'TAP TO ANSWER';
+        if (tapLabel) tapLabel.textContent = 'TAP TO START';
         if (tapIcon)  tapIcon.textContent  = '🎤';
 
         // FINISH ANSWER: hidden
@@ -291,9 +313,11 @@ const Interview = (() => {
       await Promise.all([
         window.faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
         window.faceapi.nets.faceExpressionNet.loadFromUri(MODELS_URL),
+        window.faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URL),
+        window.faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URL)
       ]);
       faceEngineReady = true;
-      console.log('[FaceEngine] Ready ✓');
+      console.log('[FaceEngine] Advanced Mode Ready ✓');
     } catch (e) {
       console.error('[FaceEngine] Init Error:', e);
     }
@@ -315,23 +339,30 @@ const Interview = (() => {
         const count = detections.length;
         personCount = count;
         text('iv-person-count', count);
-        if (count === 0) {
-          noFaceFrames++;
-          if (noFaceFrames >= 3) showEl('iv-no-face-warning');
+        if (count === 1) {
+          noFaceFrames = 0; 
+          hideEl('iv-no-face-warning'); 
           hideEl('iv-multi-person-warning');
-          violationTimer = 0;
-        } else if (count === 1) {
-          noFaceFrames = 0; hideEl('iv-no-face-warning'); hideEl('iv-multi-person-warning');
           violationTimer = 0;
           el('iv-person-badge') && (el('iv-person-badge').style.display = 'flex');
         } else {
-          noFaceFrames = 0; hideEl('iv-no-face-warning');
-          showEl('iv-multi-person-warning');
-          el('iv-multi-person-count') && (el('iv-multi-person-count').textContent = count);
+          // 0 or >1 persons = violation
+          if (count === 0) {
+            noFaceFrames++;
+            if (noFaceFrames >= 3) showEl('iv-no-face-warning');
+            hideEl('iv-multi-person-warning');
+          } else {
+            noFaceFrames = 0; 
+            hideEl('iv-no-face-warning');
+            showEl('iv-multi-person-warning');
+            el('iv-multi-person-count') && (el('iv-multi-person-count').textContent = count);
+          }
+
           el('iv-person-badge') && (el('iv-person-badge').style.display = 'none');
+
           if (!cooldownActive && !showViolationModal && !isTerminated) {
-            violationTimer += 0.9;
-            if (violationTimer >= 2) {
+            violationTimer += 0.75; // Match interval (750ms)
+            if (violationTimer >= 1.5) { // ~2 frames of violation
               violationTimer = 0;
               strikeCount++;
               text('iv-strike-count', strikeCount);
@@ -340,11 +371,11 @@ const Interview = (() => {
                 isTerminated = true;
                 window.speechSynthesis && window.speechSynthesis.cancel();
                 recognition && recognition.stop();
-                showViolationModalFn(true);
+                showViolationModalFn(true, count === 0);
               } else {
                 window.speechSynthesis && window.speechSynthesis.cancel();
                 recognition && recognition.stop();
-                showViolationModalFn(false);
+                showViolationModalFn(false, count === 0);
               }
             }
           }
@@ -365,7 +396,7 @@ const Interview = (() => {
           }
         });
       } catch (e) { /* ignore frame errors */ }
-    }, 1800); // 1800ms — halves CPU vs 900ms, still feels real-time
+    }, 750); // 750ms — 1.5s detection (2 frames)
   }
 
   function updateEmotionBadge() {
@@ -387,7 +418,7 @@ const Interview = (() => {
   }
 
   // ── Violation modal ──────────────────────────────────
-  function showViolationModalFn(terminated) {
+  function showViolationModalFn(terminated, isNoFace) {
     showViolationModal = true;
     const modal = el('iv-violation-modal');
     if (!modal) return;
@@ -396,16 +427,35 @@ const Interview = (() => {
     const msg = el('iv-violation-msg');
     const icon = el('iv-violation-icon');
     const btn = el('iv-violation-btn');
+
     if (terminated) {
       if (icon) icon.textContent = '🛑';
       if (title) title.textContent = 'Interview Terminated';
-      if (msg) msg.innerHTML = `You have received <strong>3 security violations</strong> for having additional persons on camera.<br><br><strong style="color:#ef4444">Your interview has been permanently terminated.</strong>`;
-      if (btn) { btn.textContent = '📋 View Partial Report'; btn.onclick = () => { window.location.href = `/?report=${sessionId}`; }; }
+      const reasonLabel = isNoFace ? 'Proctoring Violation: Face Not Detected' : 'Security Violation: Multiple Faces Detected';
+      if (msg) msg.innerHTML = `You have received <strong>3 security violations</strong>.<br><br><strong style="color:#ef4444">${reasonLabel}</strong><br><br><strong style="color:#ef4444">Your interview has been permanently terminated.</strong>`;
+      if (btn) { 
+        btn.textContent = '📋 View Partial Report'; 
+        btn.onclick = async () => {
+          try {
+            btn.disabled = true;
+            btn.textContent = 'Loading Report...';
+            const data = await apiGetReport(sessionId);
+            hide('iv-violation-modal');
+            showReport(data);
+          } catch(e) {
+            showError('Failed to load partial report.');
+            btn.disabled = false;
+            btn.textContent = '📋 View Partial Report';
+          }
+        };
+      }
     } else {
       if (icon) icon.textContent = strikeCount === 2 ? '⛔' : '🚨';
-      if (title) title.textContent = `Strike ${strikeCount} — Violation Detected!`;
-      if (msg) msg.innerHTML = `Another person was detected on camera for 2+ seconds.<br>This violates interview integrity rules.<br><br><strong style="color:#fbbf24">⚠️ ${3 - strikeCount} more violation${3 - strikeCount > 1 ? 's' : ''} will permanently end your interview.</strong>`;
-      if (btn) { btn.textContent = 'I Understand — Remove Extra Person'; btn.onclick = dismissViolation; }
+      if (title) title.textContent = `Strike ${strikeCount} — Security Alert!`;
+      const reasonLabel = isNoFace ? 'Proctoring Violation: Face Not Detected' : 'Security Violation: Multiple Faces Detected';
+      const action = isNoFace ? 'Please ensure your face is clearly visible and centered on the camera.' : 'Please remove any additional persons from the frame immediately.';
+      if (msg) msg.innerHTML = `<strong style="color:#fbbf24">${reasonLabel}</strong><br>This violates interview integrity rules.<br><br>${action}<br><br><strong style="color:#fbbf24">⚠️ ${3 - strikeCount} more violation${3 - strikeCount > 1 ? 's' : ''} will permanently end your interview.</strong>`;
+      if (btn) { btn.textContent = 'I Understand'; btn.onclick = dismissViolation; }
     }
     updateStrikeDots();
   }
@@ -435,11 +485,11 @@ const Interview = (() => {
         const result = event.results[i];
         const best = result[0]; // Trust primary result for speed
         if (result.isFinal) {
-          const chunk = best.transcript.trim();
+          const chunk = filterProfanity(best.transcript.trim());
           if (chunk) finalTextRef = finalTextRef ? finalTextRef + ' ' + chunk : chunk;
           interimTextRef = '';
         } else {
-          interimTextRef = best.transcript;
+          interimTextRef = filterProfanity(best.transcript);
         }
       }
       answerText = finalTextRef + (interimTextRef ? ' ' + interimTextRef.trim() : '');
@@ -699,10 +749,18 @@ const Interview = (() => {
       }
     } catch(e) { console.warn('Stats load failed:', e); }
     hide('iv-prejoin-loading');
-    show('iv-prejoin-content');
+    show('iv-prejoin-content', true); // Uses flex from CSS
   }
 
-  function setStatCard(id, val) { const e = el(id); if (e) e.textContent = `${val}%`; }
+  function setStatCard(id, val) { 
+    const e = el(id); 
+    if (e) {
+      // Round to 1 decimal place if it's a number
+      const num = typeof val === 'number' ? val : parseFloat(val);
+      const rounded = isNaN(num) ? val : Math.round(num * 10) / 10;
+      e.textContent = `${rounded}${typeof rounded === 'number' ? '%' : ''}`; 
+    }
+  }
 
   // ── Join interview ────────────────────────────────────
   async function handleJoin() {
@@ -714,14 +772,29 @@ const Interview = (() => {
       sessionId = data.session_id;
       questionNumber = 1;
 
-      // Camera
+      // Camera Enrollment
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: 1280, height: 720 }, 
+          audio: true 
+        });
+        
+        // Confirm we have a video track
+        const videoTrack = stream.getVideoTracks()[0];
+        if (!videoTrack) throw new Error('No video track found');
+
         const vid = el('iv-video');
-        if (vid) { vid.srcObject = stream; vid.play().catch(()=>{}); }
+        if (vid) { 
+          vid.srcObject = stream; 
+          vid.play().catch(()=>{}); 
+        }
+        isCamOn = true;
+        isMicOn = true;
       } catch(e) {
-        isCamOn = false; isMicOn = false;
-        showError('Camera/Mic permission denied. Interview will continue without video.');
+        console.error('[Camera] Access failed:', e);
+        showError('Please turn on your camera to start the interview. Camera access is required for proctoring.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Join Interview Now'; }
+        return; // STOP HERE
       }
 
       isJoined = true;
@@ -818,6 +891,8 @@ const Interview = (() => {
     strikeCount = 0; noFaceFrames = 0; violationTimer = 0;
     cooldownActive = false; isTerminated = false; showViolationModal = false;
     confidenceScore = 85; finalTextRef = ''; interimTextRef = ''; answerText = '';
+    baselineDescriptor = null; lipDistanceHistory = []; eyeContactHistory = [];
+    if (audioContext) { audioContext.close(); audioContext = null; }
     clearInterval(timeInterval); clearInterval(faceInterval);
 
     // DOM bindings
@@ -832,7 +907,7 @@ const Interview = (() => {
     const finishBtn = el('iv-finish-btn');
     if (finishBtn) finishBtn.onclick = handleSend;
 
-    // New TAP TO ANSWER button
+    // New STOP / START button
     const tapMicBtn = el('iv-tap-mic-btn');
     if (tapMicBtn) tapMicBtn.onclick = handleTapMic;
 
@@ -843,7 +918,8 @@ const Interview = (() => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
       });
       ansInput.addEventListener('input', e => {
-        const val = e.target.value;
+        const val = filterProfanity(e.target.value);
+        e.target.value = val; // Force filtered value back into textarea
         finalTextRef = val;
         interimTextRef = '';
         answerText = val;

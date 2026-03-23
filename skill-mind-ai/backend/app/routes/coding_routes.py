@@ -28,7 +28,9 @@ def challenge_set():
     Problems are shuffled each time to avoid repetition."""
     data = request.get_json() or {}
     jd_text = data.get('jd', '')
-    challenges = get_challenge_set(jd_text)
+    res = get_challenge_set(jd_text)
+    challenges = res["challenges"]
+    detected_languages = res["languages"]
     
     # Return problems without test cases (for security)
     safe_challenges = []
@@ -46,6 +48,7 @@ def challenge_set():
     
     return jsonify({
         "challenges": safe_challenges,
+        "languages": detected_languages,
         "total_questions": len(safe_challenges),
         "marks_per_question": 5,
         "total_marks": 30

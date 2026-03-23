@@ -1526,6 +1526,21 @@ body {
 .result-icon {
     font-size: 3rem;
     margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fulfillAward 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes fulfillAward {
+    0% {
+        transform: scale(0) rotate(-45deg);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+    }
 }
 
 .result-score {
@@ -3424,7 +3439,7 @@ canvas {
 
 .iv-you-badge {
     position: absolute;
-    top: 54px; /* Move below potential face warning */
+    top: 120px; /* Moved further down below ARIA badge area */
     left: 12px;
     z-index: 101; /* Above almost everything else */
     display: flex;
@@ -4005,62 +4020,174 @@ canvas {
 
 
 /* ── Pre-join Screen ────────────────────── */
-.iv-stat-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 16px;
-    padding: 1.25rem;
+.iv-prejoin-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #060c1c;
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+.iv-prejoin-card {
+    max-width: 900px;
+    width: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.iv-prejoin-header {
     text-align: center;
-    transition: border-color 0.2s;
+    max-width: 600px;
+    margin: 0 auto;
 }
 
-.iv-stat-card:hover {
-    border-color: rgba(26, 115, 232, 0.3);
+.iv-prejoin-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
 }
 
-.iv-stat-label {
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    color: #64748b;
-    margin-bottom: 0.4rem;
-}
-
-.iv-stat-val {
-    font-size: 1.5rem;
-    font-weight: 900;
+.iv-prejoin-title span {
     color: #1a73e8;
 }
 
-.iv-skill-tag {
-    padding: 0.3rem 0.75rem;
-    border-radius: 8px;
+.iv-prejoin-subtitle {
+    font-size: 1rem;
+    color: #94a3b8;
+    line-height: 1.6;
+}
+
+.iv-prejoin-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+}
+
+.iv-stat-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.iv-stat-card:hover {
+    border-color: rgba(26, 115, 232, 0.4);
+    background: rgba(26, 115, 232, 0.05);
+    transform: translateY(-4px);
+}
+
+.iv-stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
     background: rgba(26, 115, 232, 0.1);
-    border: 1px solid rgba(26, 115, 232, 0.2);
-    color: #60a5fa;
+    color: #1a73e8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.iv-stat-label {
     font-size: 0.75rem;
     font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #64748b;
+}
+
+.iv-stat-val {
+    font-size: 1.75rem;
+    font-weight: 900;
+    color: #fff;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.iv-skills-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.iv-info-box {
+    background: rgba(26, 115, 232, 0.05);
+    border: 1px solid rgba(26, 115, 232, 0.1);
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.iv-info-icon {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    background: #1a73e8;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #fff;
+}
+
+.iv-info-text {
+    font-size: 0.95rem;
+    color: #e2e8f0;
+    line-height: 1.5;
+}
+
+.iv-info-text strong {
+    color: #fff;
+}
+
+.iv-prejoin-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
 }
 
 .iv-join-btn {
-    padding: 0.875rem 3rem;
-    border-radius: 14px;
+    padding: 1rem 4rem;
+    border-radius: 16px;
     border: none;
     background: #1a73e8;
     color: #fff;
     font-family: inherit;
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 800;
     cursor: pointer;
     transition: all 0.2s;
     box-shadow: 0 4px 20px rgba(26, 115, 232, 0.35);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
 .iv-join-btn:hover {
     background: #1557b0;
     transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(26, 115, 232, 0.45);
+    box-shadow: 0 8px 32px rgba(26, 115, 232, 0.45);
 }
 
 .iv-join-btn:disabled {

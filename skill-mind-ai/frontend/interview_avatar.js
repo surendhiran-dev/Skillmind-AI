@@ -302,9 +302,9 @@ const ARIAAvatar = (() => {
 `;
 
   /* ── Private state ─────────────────────────────────────────── */
-  let _state      = 'idle';
+  let _state = 'idle';
   let _mouthTimer = null;
-  let _mounted    = false;
+  let _mounted = false;
 
   /* ── Mount ──────────────────────────────────────────────────── */
   function _mount() {
@@ -318,7 +318,7 @@ const ARIAAvatar = (() => {
 
     // Support both id conventions
     const container = document.getElementById('iv-avatar-container') ||
-                      document.getElementById('ariaAvatarContainer');
+      document.getElementById('ariaAvatarContainer');
     if (!container) {
       console.warn('[ARIAAvatar] No avatar container found in DOM');
       return false;
@@ -352,7 +352,7 @@ const ARIAAvatar = (() => {
       console.warn('[ARIAAvatar] ariaBodyGroup not found!');
       return;
     }
-    
+
     // Use setAttribute for SVG class application
     body.setAttribute('class', state);
     console.log('[ARIAAvatar] Class applied to body:', body.getAttribute('class'));
