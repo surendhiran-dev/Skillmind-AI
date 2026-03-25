@@ -935,7 +935,10 @@
                 }
 
                 const bar = $('#readinessBar');
-                if (bar) bar.style.width = `${r.final_score || 0}%`;
+                if (bar) {
+                    bar.style.width = `${r.final_score || 0}%`;
+                    bar.dataset.pct = `${(r.final_score || 0).toFixed(1)}%`;
+                }
                 const txt = $('#readinessText');
                 if (txt) txt.textContent = `Interview Readiness: ${r.readiness_level || 'Moderate'} (${(r.final_score || 0).toFixed(1)}%)`;
 
@@ -945,9 +948,15 @@
                     gapList.innerHTML = r.analysis.map(g => `
                         <li>
                             <div class="gap-item">
-                                <span class="gap-category">${g.category}</span>
-                                <span class="gap-status status-${g.status.toLowerCase()}">${g.status}</span>
-                                <p class="gap-suggestion">${g.suggestion}</p>
+                                <div class="gap-icon">
+                                    <div class="bracket-tl"></div>
+                                    <div class="bracket-br"></div>
+                                </div>
+                                <div class="gap-content">
+                                    <span class="gap-category">${g.category}</span>
+                                    <span class="gap-status status-${g.status.toLowerCase()}">${g.status}</span>
+                                    <p class="gap-suggestion">${g.suggestion}</p>
+                                </div>
                             </div>
                         </li>
                     `).join('');

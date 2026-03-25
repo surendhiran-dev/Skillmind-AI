@@ -428,32 +428,38 @@ def generate_quiz_llm(skills, jd_text=""):
         return None
 
     seed = random.randint(1, 1000000)
-    system_prompt = f"You are a sophisticated Technical Assessment Engine. Your goal is to generate 15 high-fidelity, UNIQUE, and skill-diverse MCQs. [Session ID: {seed}]"
+    system_prompt = f"You are a sophisticated Technical Assessment Engine. Your goal is to generate 30 high-fidelity, UNIQUE, and skill-diverse MCQs. [Session ID: {seed}]"
     prompt = f"""
-    Task: Create exactly 15 unique MCQs based on the following candidate profile.
+    Task: Create exactly 30 UNIQUE and HIGH-QUALITY MCQs based on the following candidate profile.
     
     Target Skills: {', '.join(skills)}
     {f"Context Job Description: {jd_text}" if jd_text else ""}
     
-    Strict Requirements for Uniqueness & Coverage:
-    1. SKILL COVERAGE: Distribute questions across ALL target skills listed above. Do not focus too heavily on one skill.
-    2. ZERO REPETITION: Every question must be fundamentally different. Do not repeat the same concept with slight wording changes.
-    3. DIVERSE SCENARIOS: For each skill, vary the question type:
-       - Architectural/System Design (How components interact)
-       - Debugging/Troubleshooting (Identifying flaws in a logic snippet)
-       - Performance & Best Practices (Optimizing for speed/security)
-    4. COMPLEXITY: Avoid "What is X?" questions. Use scenario-based technical questions.
-    5. RANDOMIZATION: Use seed {seed} as a conceptual anchor to ensure this batch is distinct from any previous generations.
-    6. OPTIONS: Each question must have 4 distinct, plausible options.
+    CRITICAL REQUIREMENTS for Uniqueness & Coverage:
+    1. SKILL COVERAGE: You MUST distribute questions across ALL target skills. Aim for 2-3 questions per major skill. Do not neglect any listed skill.
+    2. ZERO REPETITION: Every question must be fundamentally different. Do not repeat the same concept (e.g., if you ask about 'React Hooks' once, don't ask about another hook unless it's a completely different scenario).
+    3. NO BASIC QUESTIONS: Avoid 'What is...' or 'Which is a feature of...' questions. Focus on:
+       - Real-world Scenarios (e.g., 'You are debugging a memory leak in X...')
+       - Edge Cases (e.g., 'How does X behave when Y is null but Z is active?')
+       - Performance Trade-offs (e.g., 'Why choose approach A over B?')
+    4. DIVERSE QUESTION TYPES: Rotate through these types for each skill:
+       - Architectural/System Design
+       - Debugging/Troubleshooting
+       - Best Practices/Security
+       - Advanced Implementation
+    5. CONCEPT DIVERSITY: Avoid 'Small Changes' between questions. Each question must require a distinct mental model to solve.
+    6. OPTIONS: Each question must have 4 distinct, plausible, and high-quality options.
 
-    Return ONLY a JSON array of exactly 15 objects:
+    Generate this batch as if it's the SECOND or THIRD round of testing—avoid the most generic/obvious interview questions for these skills.
+
+    Return ONLY a JSON array of exactly 30 objects:
     [
         {{
             "skill": "Specific Skill from Target List",
-            "question": "A deep-dive, scenario-based technical question (max 200 chars)",
+            "question": "A deep-dive, scenario-based technical question (max 250 chars)",
             "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
             "answer": "Exact string of the correct option",
-            "difficulty": "medium|hard"
+            "difficulty": "hard"
         }}
     ]
     """

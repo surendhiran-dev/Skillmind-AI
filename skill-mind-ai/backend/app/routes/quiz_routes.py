@@ -40,12 +40,14 @@ def start_quiz():
     if not skill_names:
         skill_names = ["Python", "JavaScript", "SQL"] # Fallback
         
-    # Limit to 15 diverse skills if many
-    if len(skill_names) > 15:
-        skill_names = random.sample(skill_names, 15)
+    # Ensure uniqueness and limit to 20 skills to provide context to LLM
+    skill_names = list(dict.fromkeys(skill_names)) # Remove duplicates while preserving order
+    if len(skill_names) > 20:
+        skill_names = skill_names[:20]
         
+    # Pass user context for conceptual anchor
     questions = generate_questions(skill_names, jd_text)
-    return jsonify({"questions": questions}), 200
+    return jsonify({"questions": questions, "skills_covered": skill_names}), 200
 
 @quiz_bp.route('/submit', methods=['POST'])
 @jwt_required()
@@ -67,11 +69,11 @@ def submit_quiz():
         results.append({
             "question": resp['question'],
             "marks": marks,
-            "max_marks": 2
+            "max_marks": 1
         })
     
-    # Total marks out of 30 (15 questions × 2 marks each)
-    max_total = len(responses) * 2  # Should be 30 for 15 questions
+    # Total marks out of 30 (30 questions × 1 marks each)
+    max_total = len(responses) * 1  # Should be 30 for 30 questions
     score_pct = (total_marks / max_total * 100) if max_total > 0 else 0
     
     new_quiz = Quiz(user_id=user_id, skill_category="Mixed", score=score_pct)
