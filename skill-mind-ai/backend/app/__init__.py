@@ -97,6 +97,7 @@ def create_app():
     from .routes.coding_routes import coding_bp
     from .routes.scoring_routes import scoring_bp
     from .routes.dashboard_routes import dashboard_bp
+    from .routes.profile_routes import profile_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(resume_bp, url_prefix='/api/resume')
@@ -105,6 +106,7 @@ def create_app():
     app.register_blueprint(coding_bp, url_prefix='/api/coding')
     app.register_blueprint(scoring_bp, url_prefix='/api/scoring')
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
+    app.register_blueprint(profile_bp, url_prefix='/api/profile')
     
     # Import socket events to register them
     from .websocket import interview_socket

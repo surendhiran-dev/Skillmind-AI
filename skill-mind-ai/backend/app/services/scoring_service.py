@@ -30,13 +30,19 @@ def refresh_user_score(user_id):
     interview = InterviewReport.query.join(InterviewSession).filter(InterviewSession.user_id == user_id).order_by(InterviewReport.generated_at.desc()).first()
     interview_score = interview.hr_interview_score if (interview and interview.hr_interview_score is not None) else 0
 
+    # Ensure scores are within [0, 100]
+    resume_strength = max(0, min(100, resume_strength))
+    quiz_score = max(0, min(100, quiz_score))
+    coding_score = max(0, min(100, coding_score))
+    interview_score = max(0, min(100, interview_score))
+
     # Weighted Calculation
     resume_marks = (resume_strength / 100) * 10
     quiz_marks = (quiz_score / 100) * 30
     coding_marks = (coding_score / 100) * 30
     interview_marks = (interview_score / 100) * 30
     
-    final_score = resume_marks + quiz_marks + coding_marks + interview_marks
+    final_score = round(resume_marks + quiz_marks + coding_marks + interview_marks, 2)
 
     # Classification logic for analysis
     analysis = []

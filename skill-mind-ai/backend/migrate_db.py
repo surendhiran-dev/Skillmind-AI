@@ -39,5 +39,17 @@ with app.app_context():
     except Exception as e:
         print(f"Skipping hr_sessions.completed_at: {e}")
 
+    try:
+        db.session.execute(text("ALTER TABLE coding_tests ADD COLUMN quality_report JSON"))
+        print("Added coding_tests.quality_report")
+    except Exception as e:
+        print(f"Skipping coding_tests.quality_report: {e}")
+
+    try:
+        db.session.execute(text("ALTER TABLE interview_sessions ADD COLUMN termination_reason VARCHAR(100)"))
+        print("Added interview_sessions.termination_reason")
+    except Exception as e:
+        print(f"Skipping interview_sessions.termination_reason: {e}")
+
     db.session.commit()
     print("Migration complete")

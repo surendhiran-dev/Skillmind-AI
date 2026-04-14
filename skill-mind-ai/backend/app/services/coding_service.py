@@ -426,7 +426,8 @@ def evaluate_code_quality(code):
 
     for func in functions:
         if (func.body and isinstance(func.body[0], ast.Expr)
-                and isinstance(func.body[0].value, (ast.Constant, ast.Str))):
+                and isinstance(func.body[0].value, ast.Constant)
+                and isinstance(func.body[0].value.value, str)):
             score += 5
             feedback_parts.append("docstrings present")
             break

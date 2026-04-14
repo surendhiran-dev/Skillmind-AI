@@ -130,3 +130,129 @@ def send_otp_email(receiver_email, otp_code):
         except Exception as ssl_e:
             print(f"[EMAIL SERVICE] Fallback SSL also failed: {str(ssl_e)}")
             return False
+def send_cooldown_ready_email(receiver_email, user_name):
+    sender_email = os.getenv('MAIL_USERNAME')
+    password = os.getenv('MAIL_PASSWORD')
+    
+    if not sender_email or not password:
+        print("[EMAIL SERVICE] ERROR: MAIL_USERNAME or MAIL_PASSWORD not set in .env")
+        return False
+
+    message = MIMEMultipart("alternative")
+    message["Subject"] = "You're Ready! Your Interview Cooldown has Expired"
+    message["From"] = f"Skill Mind AI <{sender_email}>"
+    message["To"] = receiver_email
+
+    text = f"Hello {user_name},\n\nYour 30-minute review period is complete, and you are now eligible to re-attempt your AI Interview. Please ensure you are in a quiet, well-lit environment for your next session.\n\nBest regards,\nSkill Mind AI Team"
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            .email-container {{
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                overflow: hidden;
+            }}
+            .header {{
+                background-color: #060a16;
+                padding: 30px;
+                text-align: center;
+                border-bottom: 2px solid #1a73e8;
+            }}
+            .content {{
+                padding: 40px;
+                color: #2c3e50;
+                line-height: 1.6;
+            }}
+            .btn {{
+                padding: 15px 30px;
+                background-color: #1a73e8;
+                color: #ffffff !important;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: 700;
+                display: inline-block;
+                margin: 25px 0;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }}
+            .footer {{
+                background-color: #f8f9fa;
+                padding: 20px;
+                text-align: center;
+                font-size: 12px;
+                color: #95a5a6;
+            }}
+            .brand {{
+                color: #ffffff;
+                font-size: 24px;
+                font-weight: bold;
+                margin: 0;
+            }}
+            .accent {{ color: #1a73e8; }}
+            .tip-box {{
+                background-color: rgba(26, 115, 232, 0.05);
+                border-left: 4px solid #1a73e8;
+                padding: 15px;
+                margin: 20px 0;
+                font-size: 0.9rem;
+            }}
+        </style>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f4f7f6;">
+        <div class="email-container" style="margin-top: 50px; margin-bottom: 50px;">
+            <div class="header">
+                <h1 class="brand">SKILL MIND <span class="accent">AI</span></h1>
+            </div>
+            <div class="content">
+                <h2 style="margin-top: 0; color: #060a16;">Ready for your next attempt?</h2>
+                <p>Hello <strong>{user_name}</strong>,</p>
+                <p>Your mandatory 30-minute review and cooling-off period is now complete. We appreciate your patience and your commitment to a fair assessment process.</p>
+                
+                <div class="tip-box">
+                    <strong>💡 Quick Tips for Success:</strong><br>
+                    • Ensure your face is clearly visible and well-lit.<br>
+                    • Find a quiet space with minimal background noise.<br>
+                    • Maintain focus on the screen throughout the session.
+                </div>
+                
+                <p>You can now return to your dashboard and re-join the interview whenever you are ready.</p>
+                
+                <div style="text-align: center;">
+                    <a href="http://localhost:8000" class="btn">Return to Dashboard</a>
+                </div>
+                
+                <p style="margin-bottom: 0;">Best of luck!</p>
+                <p style="margin-top: 5px; font-weight: 600;">The Skill Mind AI Team</p>
+            </div>
+            <div class="footer">
+                &copy; 2026 Skill Mind AI. All rights reserved.<br>
+                Intelligent Capability Assessment System
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    part1 = MIMEText(text, "plain")
+    part2 = MIMEText(html, "html")
+    message.attach(part1)
+    message.attach(part2)
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, password)
+            server.sendmail(sender_email, receiver_email, message.as_string())
+        print(f"[EMAIL SERVICE] Cooldown notification sent successfully to {receiver_email}")
+        return True
+    except Exception as e:
+        print(f"[EMAIL SERVICE] ERROR sending cooldown email: {str(e)}")
+        return False

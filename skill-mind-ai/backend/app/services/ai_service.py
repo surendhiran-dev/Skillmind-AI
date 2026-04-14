@@ -91,18 +91,34 @@ def configure_ai():
 configure_ai()
 
 def clean_json_response(response_text):
-    """Helper to extract and clean JSON from AI responses."""
+    """Helper to extract and clean JSON from AI responses (handles {} and [])."""
     if not response_text:
         return None
     try:
-        # Remove markdown code blocks if present
-        clean_json = re.sub(r'```json\s*|\s*```', '', response_text).strip()
-        # Find first { and last } to handle extra text
-        first_brace = clean_json.find('{')
-        last_brace = clean_json.rfind('}')
-        if first_brace != -1 and last_brace != -1:
-            clean_json = clean_json[first_brace:last_brace+1]
-        return json.loads(clean_json)
+        # 1. Basic markdown cleaning
+        clean_text = re.sub(r'```json\s*|\s*```', '', response_text).strip()
+        
+        # 2. Find outermost structure (Object or Array)
+        first_brace = clean_text.find('{')
+        first_bracket = clean_text.find('[')
+        
+        # Determine the start and end of the outermost JSON structure
+        start_idx = -1
+        end_char = ''
+        
+        if first_brace != -1 and (first_bracket == -1 or first_brace < first_bracket):
+            start_idx = first_brace
+            end_char = '}'
+        elif first_bracket != -1:
+            start_idx = first_bracket
+            end_char = ']'
+            
+        if start_idx != -1:
+            last_idx = clean_text.rfind(end_char)
+            if last_idx != -1:
+                clean_text = clean_text[start_idx:last_idx+1]
+        
+        return json.loads(clean_text)
     except Exception as e:
         logger.error(f"JSON parsing error: {e}. Raw: {response_text[:100]}...")
         return None
@@ -357,18 +373,14 @@ def analyze_resume_llm(resume_text):
     """
     
     response_text = call_ai(prompt, system_prompt, module='resume')
-    if response_text:
-        try:
-            clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            res = json.loads(clean_json)
-            # Ensure backward compatibility and weighted components
-            res['skills'] = [s['skill'] if isinstance(s, dict) else s for s in res.get('technical_skills', [])]
-            res['score_components'] = res.get('scores', {
-                "technical": 70, "projects": 50, "experience": 60, "education": 80, "certifications": 40
-            })
-            return res
-        except Exception as e:
-            logger.error(f"Error parsing Gemini response: {e}")
+    res = clean_json_response(response_text)
+    if res:
+        # Ensure backward compatibility and weighted components
+        res['skills'] = [s['skill'] if isinstance(s, dict) else s for s in res.get('technical_skills', [])]
+        res['score_components'] = res.get('scores', {
+            "technical": 70, "projects": 50, "experience": 60, "education": 80, "certifications": 40
+        })
+        return res
     return None
 
 def analyze_match_explanation_llm(resume_text, jd_text, match_score):
@@ -391,12 +403,7 @@ def analyze_match_explanation_llm(resume_text, jd_text, match_score):
     ]
     """
     response_text = call_ai(prompt, "You are an explainable AI (XAI) engine for recruiter transparency.", module='resume')
-    if response_text:
-        try:
-            clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            return json.loads(clean_json)
-        except: pass
-    return []
+    return clean_json_response(response_text) or []
 
 def generate_skill_gap_recommendations_llm(missing_skills):
     """Suggest targeted learning paths for missing skills."""
@@ -415,12 +422,7 @@ def generate_skill_gap_recommendations_llm(missing_skills):
     ]
     """
     response_text = call_ai(prompt, "You are a technical career development coach.", module='resume')
-    if response_text:
-        try:
-            clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            return json.loads(clean_json)
-        except: pass
-    return []
+    return clean_json_response(response_text) or []
 
 def generate_quiz_llm(skills, jd_text=""):
     """Generate professional technical questions based on skills and Optional JD."""
@@ -620,12 +622,4 @@ def generate_skill_gap_recommendations_llm(missing_skills):
     """
     
     response_text = call_ai(prompt, system_prompt, module='resume')
-    if response_text:
-        try:
-            clean_json = response_text.replace('```json', '').replace('```', '').strip()
-            return json.loads(clean_json)
-        except Exception as e:
-            logger.error(f"Error parsing recommendations: {e}")
-    
-    # Simple fallback
-    return [{"text": f"Gain proficiency in {s}", "projected_increase": 5} for s in missing_skills[:3]]
+    return clean_json_response(response_text) or []

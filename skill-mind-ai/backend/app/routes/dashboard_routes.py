@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..models.models import Score, Quiz, CodingTest, Resume, Skill, User, db
+from ..models.models import Score, Quiz, CodingTest, Resume, Skill, User, InterviewSession, db
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -28,6 +28,7 @@ def get_stats():
     # History
     quizzes = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.id.desc()).limit(10).all()
     coding_tests = CodingTest.query.filter_by(user_id=user_id).order_by(CodingTest.id.desc()).limit(10).all()
+    interviews = InterviewSession.query.filter_by(user_id=user_id, status='completed').order_by(InterviewSession.ended_at.desc()).limit(10).all()
 
     # Skills
     latest_resume = Resume.query.filter_by(user_id=user_id).order_by(Resume.uploaded_at.desc()).first()
@@ -38,6 +39,21 @@ def get_stats():
     # Job Recommendations
     from ..services.ai_service import generate_job_recommendations_llm
     job_recommendations = generate_job_recommendations_llm(skills, report.final_score if report and hasattr(report, 'final_score') else 0)
+
+    # Check for Interview Cooldown
+    from datetime import datetime, timedelta
+    cooldown_active = False
+    remaining_minutes = 0
+    last_terminated = InterviewSession.query.filter(
+        InterviewSession.user_id == user_id,
+        InterviewSession.termination_reason.like('security%')
+    ).order_by(InterviewSession.ended_at.desc()).first()
+
+    if last_terminated and last_terminated.ended_at:
+        diff = datetime.utcnow() - last_terminated.ended_at
+        if diff < timedelta(minutes=30):
+            cooldown_active = True
+            remaining_minutes = 30 - int(diff.total_seconds() / 60)
 
     res = {
         "report": {
@@ -58,7 +74,12 @@ def get_stats():
         } if report else None,
         "quiz_history": [{"score": q.score} for q in quizzes],
         "coding_history": [{"score": c.score, "problem": c.problem_statement} for c in coding_tests],
+        "interview_history": [{"score": i.report.hr_interview_score if i.report else 0, "date": i.ended_at.strftime('%Y-%m-%d')} for i in interviews],
         "skills": skills,
-        "job_recommendations": job_recommendations
+        "job_recommendations": job_recommendations,
+        "cooldown": {
+            "active": cooldown_active,
+            "remaining_minutes": max(0, remaining_minutes)
+        }
     }
     return jsonify(res), 200

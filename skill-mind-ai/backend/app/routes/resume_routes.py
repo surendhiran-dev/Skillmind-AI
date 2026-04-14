@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from ..services.resume_service import extract_text_from_file, analyze_resume
+from ..services.scoring_service import refresh_user_score
 from ..models.models import Resume, Skill, db
 
 resume_bp = Blueprint('resume', __name__)
@@ -110,6 +111,12 @@ def upload_resume():
                 db.session.add(Skill(resume_id=resume.id, skill_name=s['skill'] if isinstance(s, dict) else s, category='Soft'))
             
             db.session.commit()
+            
+            # Trigger real-time dashboard update
+            try:
+                refresh_user_score(user_id)
+            except Exception as e:
+                print(f"Error refreshing user score after resume upload: {e}")
             
             return jsonify({
                 "message": f"Resume ({label}) analyzed successfully",

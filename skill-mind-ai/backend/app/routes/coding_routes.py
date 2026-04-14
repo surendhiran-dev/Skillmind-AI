@@ -110,6 +110,12 @@ def submit_code():
     db.session.add(new_test)
     db.session.commit()
 
+    # Trigger real-time dashboard update
+    try:
+        refresh_user_score(user_id)
+    except Exception as e:
+        print(f"Error refreshing user score after single coding submission: {e}")
+
     # Convert final_score (0-100) to marks out of 5
     if final_score >= 80:
         marks = 5

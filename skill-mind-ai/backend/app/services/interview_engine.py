@@ -146,12 +146,13 @@ Generate a comprehensive final report in this exact JSON:
   "readiness_level": "Strong|Moderate|Needs Improvement",
   "top_strengths": ["strength1", "strength2", "strength3"],
   "improvement_areas": ["area1", "area2", "area3"],
-  "ai_summary": "3 professional paragraphs: overview, strengths, recommendations",
-  "recommendation": "Recommended for Next Round|Further Preparation Needed|Not Recommended"
+  "ai_summary": "3 detailed paragraphs providing an overview, technical strengths, and behavioral feedback.",
+  "recommendation": ["item1", "item2", "item3"]
 }}
 
 Rules:
 - readiness_level: 75+ Strong, 50-74 Moderate, <50 Needs Improvement.
+- Recommendation: Provide 3-4 specific, high-quality, actionable next steps as a list of strings.
 """
     
     response = call_ai(prompt, "You are an expert HR evaluation system. Return ONLY valid JSON.", module='interview')

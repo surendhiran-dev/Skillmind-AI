@@ -62,6 +62,7 @@ const Interview = (() => {
   let confidenceScore = 85;
   let finalTextRef = '';
   let interimTextRef = '';
+  let answerText = ''; // Stores the final transcript for evaluation
   
   // Advanced Proctoring State
   let baselineDescriptor = null;
@@ -69,12 +70,15 @@ const Interview = (() => {
   let eyeContactHistory = [];
   let audioContext = null;
   let analyser = null;
+  let noiseInterval = null;
   let audioStream = null;
   let faceEngineReady = false;
   let recognition = null;
   let faceInterval = null;
-  let answerText = '';
   let avatar = null;
+  let isFetchingReport = false; // Guard for report polling
+  let redirectTimer = null; // Timer for 30s auto-redirect
+  let ariaVoice = null;     // Cached voice for consistency
 
   // ── DOM helpers ──────────────────────────────────────
   const el = id => document.getElementById(id);
@@ -125,14 +129,57 @@ const Interview = (() => {
     return res.json();
   }
 
-  // ── TTS ──────────────────────────────────────────────
+  async function apiTerminateInterview(sToken, reason = 'security') {
+    const res = await fetch(`${API}/interview/terminate`, {
+      method: 'POST',
+      headers: authHeader(),
+      body: JSON.stringify({ token: sToken, reason })
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Termination failed');
+    return res.json();
+  }
+
+  function getAriaVoice() {
+    if (ariaVoice) return ariaVoice;
+    if (!window.speechSynthesis) return null;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
+    // Prioritized search for high-quality female English voices
+    const searchPatterns = [
+      'Google UK English Female',
+      'Google US English Female',
+      'Microsoft Zira',
+      'Female',
+      'en-GB',
+      'en-US'
+    ];
+
+    for (const pattern of searchPatterns) {
+      const v = voices.find(v => v.name.includes(pattern) || v.lang.includes(pattern));
+      if (v) {
+        ariaVoice = v;
+        return v;
+      }
+    }
+    ariaVoice = voices[0];
+    return ariaVoice;
+  }
+
+  // Ensure voices are loaded when the browser is ready
+  if (window.speechSynthesis) {
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = getAriaVoice;
+    }
+  }
+
   function speakText(txt) {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utt = new SpeechSynthesisUtterance(txt);
     utt.rate = 0.95; utt.pitch = 1.05;
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(v => v.name.includes('Female') || v.name.includes('Google UK English Female')) || voices[0];
+    
+    const voice = getAriaVoice();
     if (voice) utt.voice = voice;
     utt.onstart = () => {
       setAriaState('speaking');
@@ -373,8 +420,7 @@ const Interview = (() => {
                 recognition && recognition.stop();
                 showViolationModalFn(true, count === 0);
               } else {
-                window.speechSynthesis && window.speechSynthesis.cancel();
-                recognition && recognition.stop();
+                // For strikes 1 & 2, do NOT interrupt ARIA or the user — keep the flow seamless
                 showViolationModalFn(false, count === 0);
               }
             }
@@ -438,14 +484,17 @@ const Interview = (() => {
         btn.onclick = async () => {
           try {
             btn.disabled = true;
-            btn.textContent = 'Loading Report...';
+            btn.textContent = 'Terminating & Loading...';
+            // Explicitly notify backend of termination
+            const res = await apiTerminateInterview(sessionToken, isNoFace ? 'security_no_face' : 'security_multiple_faces');
+            hide('iv-violation-modal');
+            showReport(res.report || {}, true);
+          } catch(e) {
+            console.error('Termination error:', e);
+            showError('Failed to terminate gracefully. Loading last known state...');
             const data = await apiGetReport(sessionId);
             hide('iv-violation-modal');
-            showReport(data);
-          } catch(e) {
-            showError('Failed to load partial report.');
-            btn.disabled = false;
-            btn.textContent = '📋 View Partial Report';
+            showReport(data.report || data, true);
           }
         };
       }
@@ -477,29 +526,52 @@ const Interview = (() => {
     recognition = new SR();
     recognition.continuous      = true;
     recognition.interimResults  = true;
-    recognition.lang            = 'en-US';
-    recognition.maxAlternatives = 1; // Faster locking on results
+    // Auto-detect or use en-IN for better accuracy in target region
+    recognition.lang            = 'en-IN'; 
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      isListening = true;
+      console.log('[STT] Active ✓');
+      // Ensure UI reflects active state if triggered by hardware/browser
+      if (ariaState === 'listening' && voiceState === 'idle') {
+        setVoiceState('active');
+      }
+      updateMicUI();
+    };
 
     recognition.onresult = (event) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      let fullFinal = '';
+      let currentInterim = '';
+
+      for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
-        const best = result[0]; // Trust primary result for speed
+        const text = filterProfanity(result[0].transcript);
+
         if (result.isFinal) {
-          const chunk = filterProfanity(best.transcript.trim());
-          if (chunk) finalTextRef = finalTextRef ? finalTextRef + ' ' + chunk : chunk;
-          interimTextRef = '';
+          fullFinal += (fullFinal ? ' ' : '') + text.trim();
         } else {
-          interimTextRef = filterProfanity(best.transcript);
+          currentInterim += text;
         }
       }
-      answerText = finalTextRef + (interimTextRef ? ' ' + interimTextRef.trim() : '');
-      updateSubtitleLive(finalTextRef, interimTextRef);
+
+      finalTextRef = fullFinal;
+      interimTextRef = currentInterim;
+      answerText = (fullFinal + (currentInterim ? ' ' + currentInterim.trim() : '')).trim();
+      updateSubtitleLive(fullFinal, currentInterim);
     };
 
     recognition.onend = () => {
-      // Aggressive auto-restart for better reliability
+      console.log('[STT] Idle');
+      // Auto-restart logic is now more careful
       if (isListening && isMicOn && ariaState === 'listening' && !isTerminated) {
-        try { recognition.start(); } catch(e) {}
+        try { 
+          recognition.start(); 
+        } catch(e) { 
+          // If it fails to restart immediately (e.g. browser busy), 
+          // it will be caught by startSTT or next interaction
+          isListening = false;
+        }
       } else {
         isListening = false;
         if (voiceState === 'active') setVoiceState('idle');
@@ -510,24 +582,37 @@ const Interview = (() => {
     recognition.onerror = (event) => {
       if (event.error === 'aborted' || event.error === 'no-speech') return;
       console.warn('[STT] Error:', event.error);
+      
       if (isListening && ariaState === 'listening' && !isTerminated) {
-        // Shorter timeout for faster recovery
-        setTimeout(() => { try { recognition.start(); } catch(e) {} }, 100);
+        // Debounced recovery
+        setTimeout(() => { 
+          if (!isListening) return;
+          try { recognition.start(); } catch(e) {} 
+        }, 300);
       }
     };
   }
 
   function startSTT() {
     if (!recognition || isTerminated) return;
-    if (isListening) return;
+    // Semaphor check to prevent InvalidStateError
+    if (isListening && voiceState === 'active') return;
+
     try {
       recognition.start();
-      isListening = true;
+      isListening = true; // Optimistic sync, hardware onstart will confirm
       setVoiceState('active');
-      updateMicUI();
     } catch(e) {
-      console.warn('[STT] Start error:', e);
+      if (e.name === 'InvalidStateError') {
+        // Already started, just sync UI
+        isListening = true;
+        setVoiceState('active');
+        console.log('[STT] Already active, syncing state.');
+      } else {
+        console.warn('[STT] Start error:', e);
+      }
     }
+    updateMicUI();
   }
 
   function stopSTT() {
@@ -602,6 +687,12 @@ const Interview = (() => {
 
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
+
+    // Randomize message
+    const msgs = ['Brilliant!', 'Great Job!', 'Excellence!', 'Keep it up!', 'Fantastic!', 'Superb!', 'Well Said!', 'Impressive!'];
+    const msgEl = el('iv-countdown-msg');
+    if (msgEl) msgEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+
     let count = 5;
     numEl.textContent = count;
     if (circle) circle.style.strokeDashoffset = '0';
@@ -639,7 +730,9 @@ const Interview = (() => {
   // ── Question display ──────────────────────────────────
   function displayQuestion(q) {
     currentQuestion = q;
-    const fullText = (q.acknowledgment ? q.acknowledgment + ' ' : '') + q.question;
+    const ack = q.acknowledgment || '';
+    const question = q.question || '';
+    const fullText = (ack ? ack + ' ' : '') + question;
     const ariaSub = el('iv-aria-subtitle');
     if (ariaSub) { ariaSub.style.display = 'flex'; ariaSub.querySelector('.iv-subtitle-text').textContent = fullText; }
     speakText(fullText);
@@ -747,6 +840,14 @@ const Interview = (() => {
         const skillsEl = el('iv-skills-display');
         if (skillsEl) skillsEl.innerHTML = stats.skills.map(s => `<span class="iv-skill-tag">${s}</span>`).join('');
       }
+
+      const joinBtn = el('iv-join-btn');
+      if (joinBtn) {
+        joinBtn.disabled = false;
+        joinBtn.innerHTML = `<i class="fas fa-play-circle"></i> Join Interview Now`;
+        joinBtn.style.opacity = '';
+        joinBtn.style.cursor = '';
+      }
     } catch(e) { console.warn('Stats load failed:', e); }
     hide('iv-prejoin-loading');
     show('iv-prejoin-content', true); // Uses flex from CSS
@@ -802,6 +903,7 @@ const Interview = (() => {
       startFaceLoop();
       startTimer();
       initSTT();
+      startNoiseDetection();
       displayQuestion(data.response);
     } catch(e) {
       showError(`Could not start interview: ${e.message}`);
@@ -809,20 +911,104 @@ const Interview = (() => {
     }
   }
 
+  function startNoiseDetection() {
+    try {
+      if (!stream) return;
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      analyser.fftSize = 256;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const noiseScoreEl = el('iv-noise-score');
+      const noiseBarEl = el('iv-noise-bar');
+      let noiseWarningTicks = 0;
+
+      noiseInterval = setInterval(() => {
+        if (!isJoined || isTerminated) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+        const avg = sum / bufferLength;
+        // Normalize 0-255 to 0-100%, and apply a small threshold to ignore room hiss
+        let vol = (avg / 255) * 100;
+        vol = Math.max(0, (vol - 2) * 1.1); // Small gate and scale
+        
+        // Update UI
+        if (noiseScoreEl) noiseScoreEl.textContent = `${vol.toFixed(1)} dB`;
+        if (noiseBarEl) {
+          noiseBarEl.style.width = `${Math.min(100, vol)}%`;
+          const color = vol > 45 ? '#ef4444' : vol > 25 ? '#f59e0b' : '#22c55e';
+          noiseBarEl.style.background = color;
+          if (noiseScoreEl) noiseScoreEl.style.color = color;
+        }
+
+        if (vol > 40 && isListening) {
+           noiseWarningTicks++;
+           if (noiseWarningTicks > 15) { // ~2.2 seconds of loud noise
+             showError('High background noise detected. Please ensure you are in a quiet environment.');
+             noiseWarningTicks = 0;
+           }
+        } else {
+           noiseWarningTicks = Math.max(0, noiseWarningTicks - 1);
+        }
+      }, 250); // Increased interval to 250ms to save CPU for STT
+    } catch (e) { console.warn('[Noise] Init Error:', e); }
+  }
+
   // ── Report screen ─────────────────────────────────────
-  function showReport(report) {
+  function showReport(report, isTerminatedReport = false) {
     hide('iv-room'); hide('iv-prejoin');
     show('iv-report');
+
+    // Security badge
+    const secBadge = el('iv-security-badge');
+    if (secBadge) {
+      if (isTerminatedReport || report.readiness_level === 'Terminated') {
+        secBadge.style.display = 'flex';
+        secBadge.classList.remove('hidden');
+      } else {
+        secBadge.style.display = 'none';
+        secBadge.classList.add('hidden');
+      }
+    }
+
     const score = Math.round(report.hr_interview_score || 0);
     const readiness = report.readiness_level || 'Moderate';
     const summary = report.ai_summary || '';
-    const strengths = report.top_strengths ? report.top_strengths.split(',') : [];
-    const areas = report.improvement_areas ? report.improvement_areas.split(',') : [];
-    const recommendation = report.recommendation || '';
+    
+    // Safely handle strengths/areas as either string or array
+    const parseList = (val, sep = ",") => {
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string' && val.trim()) return val.split(sep).filter(x => x.trim().length > 0);
+      return [];
+    };
+    
+    const strengths = parseList(report.top_strengths);
+    const areas = parseList(report.improvement_areas);
+    const recommendations = parseList(report.recommendation, "\n");
 
     text('iv-rep-score', `${score}%`);
     text('iv-rep-readiness', readiness);
-    text('iv-rep-summary', summary);
+    
+    // Badge logic
+    const statusLbl = el('iv-rep-readiness');
+    if (statusLbl) {
+      if (readiness === 'Security Terminated') {
+        statusLbl.style.background = '#ef4444';
+        statusLbl.style.color = '#fff';
+        statusLbl.innerHTML = '🛑 SECURITY TERMINATED';
+        const summaryEl = el('iv-rep-summary');
+        if (summaryEl) summaryEl.innerHTML = `<span style="color:#ef4444;font-weight:700;">[CRITICAL]</span> This interview was prematurely terminated due to multiple security violations. The scores below reflect only the partial data captured before termination.`;
+      } else {
+        statusLbl.style.background = 'rgba(255,255,255,0.05)';
+        statusLbl.style.color = '#e8eaed';
+      }
+    }
+
+    text('iv-rep-summary', summary || (readiness === 'Security Terminated' ? '' : ''));
     text('iv-rep-behavioral', report.behavioral_rating || 0);
     text('iv-rep-communication', report.communication_rating || 0);
     text('iv-rep-technical', report.technical_rating || 0);
@@ -831,8 +1017,15 @@ const Interview = (() => {
 
     const strEl = el('iv-rep-strengths');
     if (strEl) strEl.innerHTML = strengths.map(s => `<span class="iv-strength-tag">${s.trim()}</span>`).join('');
+    
     const recEl = el('iv-rep-recommendation');
-    if (recEl) recEl.textContent = recommendation;
+    if (recEl) {
+      if (recommendations.length > 0) {
+        recEl.innerHTML = `<ul style="margin:0;padding-left:1.2rem;list-style:disc;">${recommendations.map(r => `<li style="margin-bottom:0.5rem;">${r.trim()}</li>`).join('')}</ul>`;
+      } else {
+        recEl.textContent = 'N/A';
+      }
+    }
 
     // Animate score circle
     const circle = el('iv-rep-circle');
@@ -843,11 +1036,81 @@ const Interview = (() => {
     }
 
     // Load detailed QA log
-    if (sessionId) {
+    if (sessionId && !isFetchingReport) {
+      isFetchingReport = true;
       apiGetReport(sessionId).then(data => {
+        isFetchingReport = false;
         if (data?.qa_log) renderQALog(data.qa_log);
-      }).catch(() => {});
+        if (data?.report && Object.keys(data.report).length > 0) {
+          // Update the report UI with fresh data if we previously had 0/Pending
+          console.log('[Report] Live update from detailed fetch');
+          const score = Math.round(data.report.hr_interview_score || 0);
+          if (score > 0) {
+            text('iv-rep-score', `${score}%`);
+            const circle = el('iv-rep-circle');
+            if (circle) circle.style.strokeDashoffset = 440 - (440 * score / 100);
+          }
+          if (data.report.readiness_level && data.report.readiness_level !== 'Pending') {
+            text('iv-rep-readiness', data.report.readiness_level);
+          }
+          if (data.report.ai_summary) text('iv-rep-summary', data.report.ai_summary);
+          
+          if (data.report.recommendation) {
+            const recEl = el('iv-rep-recommendation');
+            const recs = parseList(data.report.recommendation, "\n");
+            if (recEl && recs.length > 0) {
+              recEl.innerHTML = `<ul style="margin:0;padding-left:1.2rem;list-style:disc;">${recs.map(r => `<li style="margin-bottom:0.5rem;">${r.trim()}</li>`).join('')}</ul>`;
+            }
+          }
+          
+          text('iv-rep-behavioral', data.report.behavioral_rating || 0);
+          text('iv-rep-communication', data.report.communication_rating || 0);
+          text('iv-rep-technical', data.report.technical_rating || 0);
+          text('iv-rep-confidence', data.report.confidence_index || 0);
+          animateBars(data.report);
+          
+          const strEl = el('iv-rep-strengths');
+          const strengths = parseList(data.report.top_strengths);
+          if (strEl) {
+            strEl.innerHTML = strengths.length > 0 
+              ? strengths.map(s => `<span class="iv-strength-tag">${s.trim()}</span>`).join('')
+              : '<span style="color:rgba(255,255,255,0.4);font-size:0.8rem;font-style:italic;">Processing...</span>';
+          }
+        }
+      }).catch(err => {
+        isFetchingReport = false;
+        console.warn('[Report] QA Log load failed:', err);
+      });
     }
+    // --- 30s Auto Redirect Timer ---
+    let timeLeft = 30;
+    const updateTimerUI = () => {
+      const timerEl = el('iv-redirect-timer');
+      if (timerEl) timerEl.textContent = `(Redirecting in ${timeLeft}s)`;
+    };
+    
+    updateTimerUI();
+    if (redirectTimer) clearInterval(redirectTimer);
+    
+    redirectTimer = setInterval(() => {
+      timeLeft--;
+      updateTimerUI();
+      if (timeLeft <= 0) {
+        clearInterval(redirectTimer);
+        window.location.href = '/';
+      }
+    }, 1000);
+  }
+
+  function renderStrengths(containerId, list) {
+    const container = el(containerId);
+    if (!container) return;
+    const items = parseList(list);
+    if (items.length === 0) {
+      container.innerHTML = '<span style="color:rgba(255,255,255,0.4);font-size:0.8rem;font-style:italic;">No specific areas identified yet.</span>';
+      return;
+    }
+    container.innerHTML = items.map(s => `<span class="iv-strength-tag">${s.trim()}</span>`).join('');
   }
 
   function animateBars(report) {
@@ -965,7 +1228,10 @@ const Interview = (() => {
     if (confirmEnd) confirmEnd.onclick = () => { stream && stream.getTracks().forEach(t => t.stop()); showPreJoin(); };
 
     const backBtn = el('iv-rep-back-btn');
-    if (backBtn) backBtn.onclick = () => { window.location.href = '/'; };
+    if (backBtn) backBtn.onclick = () => { 
+      if (redirectTimer) clearInterval(redirectTimer);
+      window.location.href = '/'; 
+    };
 
     // Init face engine in background
     initFaceEngine();

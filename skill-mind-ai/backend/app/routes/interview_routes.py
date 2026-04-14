@@ -1,13 +1,30 @@
 from flask import Blueprint, request, jsonify
-from .. import db
-from ..models.models import User, Resume, Score, InterviewSession, InterviewQA, InterviewReport
+from datetime import datetime, timedelta
+import secrets
+import threading
+import time
+from ..models.models import db, User, Resume, Score, InterviewSession, InterviewQA, InterviewReport
 from ..services.interview_engine import get_next_question, evaluate_answer, generate_final_report
 from ..services.scoring_service import refresh_user_score
+from ..services.email_service import send_cooldown_ready_email
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
 interview_bp = Blueprint('interview', __name__)
+
+# Helper to safely join list data into strings for the DB
+def safe_join_ai_field(report_data, field_name):
+    if not report_data:
+        return "N/A"
+    val = report_data.get(field_name, "N/A")
+    if isinstance(val, list):
+        # Filter out non-string items and join
+        clean_list = [str(i) for i in val if i]
+        if field_name in ['ai_summary', 'recommendation']:
+            return "\n".join(clean_list)
+        return ", ".join(clean_list)
+    return str(val) if val is not None else "N/A"
 
 # Helper to get candidate context
 def get_candidate_data(user_id):
@@ -62,6 +79,8 @@ def start_interview():
     candidate_data = get_candidate_data(user_id)
     if not candidate_data:
         return jsonify({'error': 'Candidate not found'}), 404
+
+
         
     token = secrets.token_hex(32)
     session = InterviewSession(
@@ -179,21 +198,20 @@ def submit_answer():
             } for q in qa_log
         ])
         
-        if report_data:
-            report = InterviewReport(
-                session_id=session.id,
-                hr_interview_score=report_data.get('hr_interview_score', 0),
-                behavioral_rating=report_data.get('behavioral_rating', 0),
-                communication_rating=report_data.get('communication_rating', 0),
-                technical_rating=report_data.get('technical_rating', 0),
-                confidence_index=report_data.get('confidence_index', 0),
-                readiness_level=report_data.get('readiness_level', 'Moderate'),
-                top_strengths=",".join(report_data.get('top_strengths', [])),
-                improvement_areas=",".join(report_data.get('improvement_areas', [])),
-                ai_summary=report_data.get('ai_summary', ''),
-                recommendation=report_data.get('recommendation', '')
-            )
-            db.session.add(report)
+        report = InterviewReport(
+            session_id=session.id,
+            hr_interview_score=report_data.get('hr_interview_score', 0) if report_data else 0,
+            behavioral_rating=report_data.get('behavioral_rating', 0) if report_data else 0,
+            communication_rating=report_data.get('communication_rating', 0) if report_data else 0,
+            technical_rating=report_data.get('technical_rating', 0) if report_data else 0,
+            confidence_index=report_data.get('confidence_index', 0) if report_data else 0,
+            readiness_level=report_data.get('readiness_level', 'Moderate') if report_data else 'Moderate',
+            top_strengths=safe_join_ai_field(report_data, 'top_strengths'),
+            improvement_areas=safe_join_ai_field(report_data, 'improvement_areas'),
+            ai_summary=safe_join_ai_field(report_data, 'ai_summary'),
+            recommendation=safe_join_ai_field(report_data, 'recommendation')
+        )
+        db.session.add(report)
             
         session.status = 'completed'
         session.ended_at = datetime.utcnow()
@@ -232,7 +250,34 @@ def get_report(session_id):
     qa_log = InterviewQA.query.filter_by(session_id=session_id).order_by(InterviewQA.question_number).all()
     
     if not report:
-        return jsonify({'error': 'Report not found'}), 404
+        # Check if the session actually exists
+        session = InterviewSession.query.get(session_id)
+        if not session:
+            return jsonify({'error': 'Interview session not found'}), 404
+            
+        # If session exists but report is missing, return a skeleton to prevent 404 loop
+        return jsonify({
+            'report': {
+                'hr_interview_score': 0,
+                'behavioral_rating': 0,
+                'communication_rating': 0,
+                'technical_rating': 0,
+                'confidence_index': 0,
+                'readiness_level': 'Pending',
+                'top_strengths': "N/A",
+                'improvement_areas': "N/A",
+                'ai_summary': 'Final report is being processed or failed to generate.',
+                'recommendation': 'N/A'
+            },
+            'qa_log': [
+                {
+                    'question': q.question_text,
+                    'answer': q.answer_text,
+                    'score': q.answer_score,
+                    'feedback': q.ai_feedback
+                } for q in qa_log
+            ]
+        })
         
     return jsonify({
         'report': {
@@ -242,8 +287,8 @@ def get_report(session_id):
             'technical_rating': report.technical_rating,
             'confidence_index': report.confidence_index,
             'readiness_level': report.readiness_level,
-            'top_strengths': report.top_strengths.split(',') if report.top_strengths else [],
-            'improvement_areas': report.improvement_areas.split(',') if report.improvement_areas else [],
+            'top_strengths': report.top_strengths or "N/A",
+            'improvement_areas': report.improvement_areas or "N/A",
             'ai_summary': report.ai_summary,
             'recommendation': report.recommendation
         },
@@ -255,4 +300,78 @@ def get_report(session_id):
                 'feedback': q.ai_feedback
             } for q in qa_log
         ]
+    })
+
+@interview_bp.route('/terminate', methods=['POST'])
+def terminate_interview():
+    data = request.json
+    token = data.get('token')
+    reason = data.get('reason', 'security')
+    
+    session = InterviewSession.query.filter_by(session_token=token).first()
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+        
+    session.status = 'terminated'
+    session.termination_reason = reason
+    session.ended_at = datetime.utcnow()
+    
+    # Generate partial report if there are any answers
+    qa_log = InterviewQA.query.filter_by(session_id=session.id).order_by(InterviewQA.question_number).all()
+    candidate_data = get_candidate_data(session.user_id)
+    
+    report_data = None
+    if qa_log:
+        try:
+            report_data = generate_final_report(candidate_data, [
+                {
+                    'question_text': q.question_text,
+                    'answer_text': q.answer_text,
+                    'question_type': q.question_type,
+                    'answer_score': q.answer_score
+                } for q in qa_log
+            ])
+            
+            report = InterviewReport(
+                session_id=session.id,
+                hr_interview_score=report_data.get('hr_interview_score', 0) if report_data else 0,
+                behavioral_rating=report_data.get('behavioral_rating', 0) if report_data else 0,
+                communication_rating=report_data.get('communication_rating', 0) if report_data else 0,
+                technical_rating=report_data.get('technical_rating', 0) if report_data else 0,
+                confidence_index=report_data.get('confidence_index', 0) if report_data else 0,
+                readiness_level='Terminated',
+                top_strengths=safe_join_ai_field(report_data, 'top_strengths'),
+                improvement_areas=safe_join_ai_field(report_data, 'improvement_areas'),
+                ai_summary="[SECURITY TERMINATED] This interview was ended due to proctoring violations. " + safe_join_ai_field(report_data, 'ai_summary'),
+                recommendation="Review the proctoring rules. " + safe_join_ai_field(report_data, 'recommendation')
+            )
+            db.session.add(report)
+        except Exception as e:
+            print(f"Error generating partial report: {e}")
+
+    db.session.commit()
+    
+    # Trigger unified score update for the dashboard (even if terminated)
+    try:
+        refresh_user_score(session.user_id)
+    except Exception as e:
+        print(f"Error refreshing user score on termination: {e}")
+    
+    # Schedule automated notification if security terminated
+    if reason.startswith('security'):
+        user = User.query.get(session.user_id)
+        if user and user.email:
+            def delayed_email(email, name):
+                time.sleep(1800) # 30 minutes
+                send_cooldown_ready_email(email, name)
+            
+            thread = threading.Thread(target=delayed_email, args=(user.email, user.full_name or user.username))
+            thread.daemon = True
+            thread.start()
+            print(f"[INTERVIEW] Scheduled cooldown email for {user.email} in 30 minutes.")
+
+    return jsonify({
+        'status': 'terminated',
+        'message': 'Interview terminated due to security violations.',
+        'report': report_data
     })

@@ -1,5 +1,6 @@
 (() => {
     'use strict';
+    console.log(">>> SKILLMIND FRONTEND RELOADED v2 <<<");
 
     const API = 'http://127.0.0.1:5000';  // Updated to point to backend port
     const socket = io('http://127.0.0.1:5000'); // Initialize Socket.IO connection to backend
@@ -110,6 +111,30 @@
         }, 4000);
     }
 
+    let globalRedirectTimer = null;
+    function startRedirectTimer(buttonId, targetPage, text, seconds) {
+        const btn = $(`#${buttonId}`);
+        if (!btn) return;
+
+        let timeLeft = seconds;
+        if (globalRedirectTimer) clearInterval(globalRedirectTimer);
+
+        const originalText = btn.textContent;
+        const updateText = () => {
+            btn.textContent = `${text} (${timeLeft}s)`;
+        };
+
+        updateText();
+        globalRedirectTimer = setInterval(() => {
+            timeLeft--;
+            updateText();
+            if (timeLeft <= 0) {
+                clearInterval(globalRedirectTimer);
+                showPage(targetPage);
+            }
+        }, 1000);
+    }
+
     async function api(path, opts = {}) {
         const headers = { ...(opts.headers || {}) };
 
@@ -149,10 +174,10 @@
         if (!res.ok) {
             if (res.status === 401 && !path.includes('/auth/login')) {
                 showToast('Session expired. Please log in again.', 'warning');
-                logout();
+                signOut();
             }
             if (res.status === 422) {
-                showToast('Authentication error. Please logout and login again to refresh your session.', 'error');
+                showToast('Authentication error. Please sign out and sign in again to refresh your session.', 'error');
             }
             const errMsg = data.message || `Error ${res.status}`;
             showToast(errMsg, 'error');
@@ -882,12 +907,20 @@
         }, 800);
     }
 
-    function logout() {
+    function signOut() {
         state.token = null;
         state.user = null;
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('user');
         sessionStorage.removeItem('hasVisited'); // Clear so next login starts fresh
+
+        // Force close settings modal if open
+        const modal = $('#unifiedSettingsModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = ''; 
+        }
+
         showView('authView');
     }
 
@@ -906,7 +939,7 @@
                 }
             });
         });
-        $('#logoutBtn')?.addEventListener('click', logout);
+
         $('#generateReportBtn')?.addEventListener('click', generateReport);
     }
 
@@ -980,11 +1013,13 @@
                 if (el) el.innerHTML = data.skills.map(s => `<span class="tag">${s}</span>`).join('');
             }
 
-            // Line chart with history
-            if (data.quiz_history) renderLine(data.quiz_history);
+            // Enhanced multi-module history chart
+            if (data.quiz_history || data.coding_history || data.interview_history) {
+                renderHistoryChart(data);
+            }
 
-        } catch {
-            // silently fail — user may not have data yet
+        } catch (err) {
+            console.warn('[Dashboard] Sync error:', err);
         }
     }
 
@@ -1138,34 +1173,74 @@
         });
     }
 
-    function renderLine(history) {
+    function renderHistoryChart(data) {
         const ctx = document.getElementById('lineChart');
-        if (!ctx || !history.length) return;
+        if (!ctx) return;
+        
+        const qH = data.quiz_history || [];
+        const cH = data.coding_history || [];
+        const iH = data.interview_history || [];
+        
+        const maxLen = Math.max(qH.length, cH.length, iH.length);
+        if (maxLen === 0) return;
+
         if (lineChart) lineChart.destroy();
 
         lineChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: history.map((_, i) => `Attempt ${i + 1}`),
-                datasets: [{
-                    label: 'Quiz Score',
-                    data: history.map(h => h.score),
-                    borderColor: '#6366f1',
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#6366f1',
-                }]
+                labels: Array.from({length: maxLen}, (_, i) => `Attempt ${i + 1}`),
+                datasets: [
+                    {
+                        label: 'Quiz',
+                        data: qH.map(h => h.score),
+                        borderColor: '#6366f1',
+                        backgroundColor: 'transparent',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Coding',
+                        data: cH.map(h => h.score),
+                        borderColor: '#ec4899',
+                        backgroundColor: 'transparent',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Interview',
+                        data: iH.map(h => h.score),
+                        borderColor: '#10b981',
+                        backgroundColor: 'transparent',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    y: { beginAtZero: true, max: 100, ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    x: { ticks: { color: '#64748b' }, grid: { display: false } }
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8' }
+                    }
                 },
-                plugins: { legend: { labels: { color: '#94a3b8' } } }
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: { color: '#f8fafc', boxWidth: 12, padding: 15, font: { size: 10 } }
+                    }
+                }
             }
         });
     }
@@ -1971,6 +2046,12 @@
     function nextQuestion(force = false) {
         clearInterval(quizTimerInterval);
         const q = state.quizQuestions[state.quizIndex];
+        if (!q) {
+            console.warn("No more questions at index:", state.quizIndex);
+            submitQuiz();
+            return;
+        }
+        
         const textAnswer = $('#answerInput').value.trim();
         const finalAnswer = q.options ? state.selectedOption : textAnswer;
 
@@ -2011,6 +2092,7 @@
             $('#quizResult').classList.remove('hidden');
             sessionStorage.setItem('quiz_completed', '1');
             enforceFlow();
+            startRedirectTimer('gotoCodingBtn', 'coding', 'Go to Coding Assessment', 10);
         } catch {
             alert('Failed to submit quiz.');
             $('#quizStart').classList.remove('hidden');
@@ -2345,6 +2427,7 @@
             sessionStorage.setItem('coding_completed', '1');
             enforceFlow();
             showToast('Coding Assessment Finalized!', 'success');
+            startRedirectTimer('gotoInterviewBtn', 'interview', 'Go to Personal Interview', 10);
 
             loadDashboard();
         } catch (err) {
@@ -2374,6 +2457,400 @@
         });
     }
 
+    /* ===== Profile & Settings ===== */
+    let profileData = null;
+
+    function initProfile() {
+        const unifiedModal = $('#unifiedSettingsModal');
+        if (!unifiedModal) return;
+
+        // Phone specific logic
+        const updatePhoneRules = () => {
+            const select = $('#profileCountryCode');
+            const phoneInput = $('#profilePhone');
+            if (select && phoneInput) {
+                const opt = select.options[select.selectedIndex];
+                const format = opt.dataset.format || '10 digits';
+                const lenMatch = format.match(/(\d+)(?:-(\d+))?/);
+                
+                let maxLen = 10;
+                if (lenMatch) {
+                    maxLen = lenMatch[2] ? parseInt(lenMatch[2]) : parseInt(lenMatch[1]);
+                }
+                
+                phoneInput.maxLength = maxLen;
+                phoneInput.placeholder = `Enter ${format}`;
+                
+                // Real-time validation
+                phoneInput.addEventListener('input', function() {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                    if (this.value.length > maxLen) {
+                        this.value = this.value.slice(0, maxLen);
+                    }
+                });
+            }
+        };
+
+        $('#profileCountryCode')?.addEventListener('change', updatePhoneRules);
+        
+        async function loadProfile() {
+            try {
+                const data = await api('/api/profile/');
+                profileData = data;
+                
+                if (data.user) {
+                    if ($('#profileFullName')) $('#profileFullName').value = data.user.full_name || '';
+                    if ($('#profileEmail')) $('#profileEmail').value = data.user.email || '';
+                    if ($('#profilePhone')) $('#profilePhone').value = data.user.phone || '';
+                    if ($('#profileBio')) $('#profileBio').value = data.user.bio || '';
+                    if ($('#profileDisplayName')) $('#profileDisplayName').textContent = data.user.full_name || data.user.username;
+                    if ($('#profileDisplayUsername')) $('#profileDisplayUsername').textContent = `@${data.user.username}`;
+                    
+                    if (data.user.profile_photo) {
+                        if ($('#profileAvatarPreview')) $('#profileAvatarPreview').src = data.user.profile_photo;
+                        if ($('#navAvatarImg')) $('#navAvatarImg').src = data.user.profile_photo;
+                    }
+                    
+                    const greeting = $('#userGreeting');
+                    if (greeting) greeting.textContent = data.user.full_name || data.user.username;
+                }
+
+                updatePhoneRules();
+                // Default render to resume history
+                const activeTab = $('.btn-tab.active');
+                if (activeTab) renderHistory(activeTab.dataset.historyTab || 'resume');
+                else renderHistory('resume');
+
+            } catch (err) {
+                console.error('Error loading profile:', err);
+            }
+        }
+
+        async function saveProfile() {
+            const btn = $('#saveProfileBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Saving...';
+
+            try {
+                const payload = {
+                    full_name: $('#profileFullName')?.value || '',
+                    phone: $('#profilePhone')?.value || '',
+                    bio: $('#profileBio')?.value || ''
+                };
+                await api('/api/profile/', {
+                    method: 'PUT',
+                    body: payload
+                });
+                
+                if ($('#profileDisplayName')) $('#profileDisplayName').textContent = payload.full_name || payload.username;
+                if ($('#navAvatarImg')) $('#navAvatarImg').nextElementSibling.textContent = 'Profile';
+
+                // Success Popup Logic
+                const popup = $('#successPopupOverlay');
+                if (popup) {
+                    popup.classList.add('show');
+                    setTimeout(() => {
+                        popup.classList.remove('show');
+                    }, 2000);
+                }
+
+            } catch (err) {
+                showToast('Failed to update profile', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // Event Listeners for Profile & Settings
+        $('#profileFormInner')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveProfile();
+        });
+
+        $('#avatarUploadInput')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const base64 = event.target.result;
+                try {
+                    await api('/api/profile/', {
+                        method: 'PUT',
+                        body: { profile_photo: base64 }
+                    });
+                    if ($('#profileAvatarPreview')) $('#profileAvatarPreview').src = base64;
+                    if ($('#navAvatarImg')) $('#navAvatarImg').src = base64;
+                    showToast('Photo updated!', 'success');
+                } catch (err) {
+                    showToast('Failed to upload photo', 'error');
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Trigger avatar upload via click
+        $('#profileAvatarPreview')?.parentElement.addEventListener('click', () => {
+            $('#avatarUploadInput')?.click();
+        });
+
+        // Open Modal from Nav
+        $('#navProfileLink')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            unifiedModal.classList.remove('hidden');
+            loadProfile();
+            document.body.style.overflow = 'hidden';
+        });
+
+        // Close Modal
+        $('#closeUnifiedSettings')?.addEventListener('click', () => {
+            unifiedModal.classList.add('hidden');
+            document.body.style.overflow = '';
+        });
+
+        // Sidebar Navigation Handling
+        $$('.sidebar-btn[data-settings-tab]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                $$('.sidebar-btn[data-settings-tab]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                $$('.settings-section').forEach(s => s.classList.add('hidden'));
+                const target = $(`#${btn.dataset.settingsTab}Section`);
+                if (target) target.classList.remove('hidden');
+            });
+        });
+
+        // History Setup
+        $$('.history-tabs-container .btn-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                $$('.history-tabs-container .btn-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                renderHistory(tab.dataset.historyTab);
+            });
+        });
+
+        $('#historySort')?.addEventListener('change', () => {
+            const active = $('.history-tabs-container .btn-tab.active');
+            if (active) renderHistory(active.dataset.historyTab);
+        });
+
+        // Interactive Sign Out Button Animation
+        const signOutButtonStates = {
+            'default': {
+              '--figure-duration': '100ms',
+              '--transform-figure': 'none',
+              '--walking-duration': '100ms',
+              '--transform-arm1': 'none',
+              '--transform-wrist1': 'none',
+              '--transform-arm2': 'none',
+              '--transform-wrist2': 'none',
+              '--transform-leg1': 'none',
+              '--transform-calf1': 'none',
+              '--transform-leg2': 'none',
+              '--transform-calf2': 'none'
+            },
+            'hover': {
+              '--figure-duration': '100ms',
+              '--transform-figure': 'translateX(1.5px)',
+              '--walking-duration': '100ms',
+              '--transform-arm1': 'rotate(-5deg)',
+              '--transform-wrist1': 'rotate(-15deg)',
+              '--transform-arm2': 'rotate(5deg)',
+              '--transform-wrist2': 'rotate(6deg)',
+              '--transform-leg1': 'rotate(-10deg)',
+              '--transform-calf1': 'rotate(5deg)',
+              '--transform-leg2': 'rotate(20deg)',
+              '--transform-calf2': 'rotate(-20deg)'
+            },
+            'walking1': {
+              '--figure-duration': '300ms',
+              '--transform-figure': 'translateX(11px)',
+              '--walking-duration': '300ms',
+              '--transform-arm1': 'translateX(-4px) translateY(-2px) rotate(120deg)',
+              '--transform-wrist1': 'rotate(-5deg)',
+              '--transform-arm2': 'translateX(4px) rotate(-110deg)',
+              '--transform-wrist2': 'rotate(-5deg)',
+              '--transform-leg1': 'translateX(-3px) rotate(80deg)',
+              '--transform-calf1': 'rotate(-30deg)',
+              '--transform-leg2': 'translateX(4px) rotate(-60deg)',
+              '--transform-calf2': 'rotate(20deg)'
+            },
+            'walking2': {
+              '--figure-duration': '400ms',
+              '--transform-figure': 'translateX(17px)',
+              '--walking-duration': '300ms',
+              '--transform-arm1': 'rotate(60deg)',
+              '--transform-wrist1': 'rotate(-15deg)',
+              '--transform-arm2': 'rotate(-45deg)',
+              '--transform-wrist2': 'rotate(6deg)',
+              '--transform-leg1': 'rotate(-5deg)',
+              '--transform-calf1': 'rotate(10deg)',
+              '--transform-leg2': 'rotate(10deg)',
+              '--transform-calf2': 'rotate(-20deg)'
+            },
+            'falling1': {
+              '--figure-duration': '1600ms',
+              '--walking-duration': '400ms',
+              '--transform-arm1': 'rotate(-60deg)',
+              '--transform-wrist1': 'none',
+              '--transform-arm2': 'rotate(30deg)',
+              '--transform-wrist2': 'rotate(120deg)',
+              '--transform-leg1': 'rotate(-30deg)',
+              '--transform-calf1': 'rotate(-20deg)',
+              '--transform-leg2': 'rotate(20deg)'
+            },
+            'falling2': {
+              '--walking-duration': '300ms',
+              '--transform-arm1': 'rotate(-100deg)',
+              '--transform-arm2': 'rotate(-60deg)',
+              '--transform-wrist2': 'rotate(60deg)',
+              '--transform-leg1': 'rotate(80deg)',
+              '--transform-calf1': 'rotate(20deg)',
+              '--transform-leg2': 'rotate(-60deg)'
+            },
+            'falling3': {
+              '--walking-duration': '500ms',
+              '--transform-arm1': 'rotate(-30deg)',
+              '--transform-wrist1': 'rotate(40deg)',
+              '--transform-arm2': 'rotate(50deg)',
+              '--transform-wrist2': 'none',
+              '--transform-leg1': 'rotate(-30deg)',
+              '--transform-leg2': 'rotate(20deg)',
+              '--transform-calf2': 'none'
+            }
+        };
+
+        const updateButtonState = (button, s) => {
+            if (signOutButtonStates[s]) {
+                button.state = s;
+                for (let key in signOutButtonStates[s]) {
+                    button.style.setProperty(key, signOutButtonStates[s][key]);
+                }
+            }
+        };
+
+        const btnSignOut = $('#sidebarSignOut');
+        if (btnSignOut) {
+            btnSignOut.state = 'default';
+            
+            btnSignOut.addEventListener('mouseenter', () => {
+                if (btnSignOut.state === 'default') updateButtonState(btnSignOut, 'hover');
+            });
+            btnSignOut.addEventListener('mouseleave', () => {
+                if (btnSignOut.state === 'hover') updateButtonState(btnSignOut, 'default');
+            });
+            
+            btnSignOut.addEventListener('click', () => {
+                if (btnSignOut.state === 'default' || btnSignOut.state === 'hover') {
+                    btnSignOut.classList.add('clicked');
+                    updateButtonState(btnSignOut, 'walking1');
+                    
+                    setTimeout(() => {
+                        btnSignOut.classList.add('door-slammed');
+                        updateButtonState(btnSignOut, 'walking2');
+                        
+                        setTimeout(() => {
+                            btnSignOut.classList.add('falling');
+                            updateButtonState(btnSignOut, 'falling1');
+                            
+                            setTimeout(() => {
+                                updateButtonState(btnSignOut, 'falling2');
+                                
+                                setTimeout(() => {
+                                    updateButtonState(btnSignOut, 'falling3');
+                                    
+                                    setTimeout(() => {
+                                        // Execute actual sign out functionality AFTER animation completes
+                                        signOut();
+                                    }, 1000);
+                                    
+                                }, parseInt(signOutButtonStates['falling2']['--walking-duration']));
+                            }, parseInt(signOutButtonStates['falling1']['--walking-duration']));
+                        }, parseInt(signOutButtonStates['walking2']['--figure-duration']));
+                    }, parseInt(signOutButtonStates['walking1']['--figure-duration']));
+                }
+            });
+        }
+    }
+
+    function renderHistory(type) {
+        if (!profileData || !profileData.history) return;
+        const list = $('#historyList');
+        if (!list) return;
+        list.innerHTML = '';
+        
+        const sortVal = $('#historySort')?.value || 'date-desc';
+        
+        const history = [...(profileData.history[type] || [])].sort((a, b) => {
+            if (sortVal === 'date-desc') return new Date(b.date) - new Date(a.date);
+            if (sortVal === 'date-asc') return new Date(a.date) - new Date(b.date);
+            if (sortVal === 'score-desc') return b.score - a.score;
+            if (sortVal === 'score-asc') return a.score - b.score;
+            return 0;
+        });
+
+        if (history.length === 0) {
+            list.innerHTML = `<p class="placeholder-text">No ${type} history found.</p>`;
+            return;
+        }
+
+        history.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.style = 'display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-radius: 12px; background: rgba(255,255,255,0.03); margin-bottom: 0.8rem; border: 1px solid rgba(255,255,255,0.05);';
+            const date = new Date(item.date).toLocaleDateString();
+            
+            if (type === 'quizzes') {
+                div.innerHTML = `
+                    <div class="history-item-left">
+                        <span class="history-item-title">${item.skill} Quiz</span>
+                        <span class="history-item-sub">Completed on ${date}</span>
+                    </div>
+                    <div class="history-item-right">
+                        <span class="history-score">${Math.round(item.score)}/30</span>
+                        <div class="history-date">Points</div>
+                    </div>
+                `;
+            } else if (type === 'coding') {
+                div.innerHTML = `
+                    <div class="history-item-left">
+                        <span class="history-item-title">Coding Challenge</span>
+                        <span class="history-item-sub">${item.problem}</span>
+                    </div>
+                    <div class="history-item-right">
+                        <span class="history-score">${Math.round(item.score)}/30</span>
+                        <div class="history-date">${date}</div>
+                    </div>
+                `;
+            } else if (type === 'resume') {
+                div.innerHTML = `
+                    <div class="history-item-left">
+                        <span class="history-item-title">Resume Analysis</span>
+                        <span class="history-item-sub">${item.filename || 'Uploaded Resume'}</span>
+                    </div>
+                    <div class="history-item-right">
+                        <span class="history-score">${Math.round(item.score)}/100</span>
+                        <div class="history-date">${date}</div>
+                    </div>
+                `;
+            } else if (type === 'interview') {
+                div.innerHTML = `
+                    <div class="history-item-left">
+                        <span class="history-item-title">AI Interview</span>
+                        <span class="history-item-sub">Completed Evaluation</span>
+                    </div>
+                    <div class="history-item-right">
+                        <span class="history-score">${Math.round(item.score)}/30</span>
+                        <div class="history-date">${date}</div>
+                    </div>
+                `;
+            }
+            list.appendChild(div);
+        });
+    }
+
     /* ===== Init ===== */
     document.addEventListener('DOMContentLoaded', () => {
         initAuth();
@@ -2382,5 +2859,11 @@
         initQuiz();
         initCoding();
         initScoring();
+        initProfile();
     });
+
+    // --- Export to Global Scope for inline onclick handlers ---
+    window.showPage = showPage;
+    window.startQuiz = startQuiz;
+    window.startCoding = startCodingAssessment;
 })();
