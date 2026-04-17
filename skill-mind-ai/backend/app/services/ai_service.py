@@ -20,6 +20,7 @@ MODULE_CONFIGS = {
     'quiz': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
     'coding': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
     'interview': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
+    'support': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
     'default': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"}
 }
 
@@ -53,6 +54,7 @@ def configure_ai():
         'quiz': 'QUIZ_AI_KEY',
         'coding': 'CODING_AI_KEY',
         'interview': 'INTERVIEW_AI_KEY',
+        'support': 'SUPPORT_AI_KEY',
         'default': 'OPENAI_API_KEY'
     }
     
@@ -123,8 +125,11 @@ def clean_json_response(response_text):
         logger.error(f"JSON parsing error: {e}. Raw: {response_text[:100]}...")
         return None
 
-def call_ai(prompt, system_instruction=None, module='default'):
-    """Call the configured AI provider for a specific module."""
+def call_ai(prompt, system_instruction=None, module='default', history=None):
+    """
+    General purpose AI call for OpenAI/OpenRouter systems.
+    Supports optional conversation history for more dynamic interactions.
+    """
     config = MODULE_CONFIGS.get(module, MODULE_CONFIGS['default'])
     
     # Special handling for HR Interview module - prioritize Anthropic
@@ -142,6 +147,11 @@ def call_ai(prompt, system_instruction=None, module='default'):
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
+        
+        # Add conversation history if provided
+        if history:
+            messages.extend(history)
+            
         messages.append({"role": "user", "content": prompt})
         
         # Use config model, but handle OpenRouter specific prefixes if needed

@@ -18,7 +18,14 @@ def refresh_user_score(user_id):
             resume_strength = min((text_len / 1000) * 50 + 50, 100)
 
     # 2. Latest Quiz Score (30% weight)
-    quiz = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.completed_at.desc()).first()
+    try:
+        # Try sorting by completed_at if available
+        quiz = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.completed_at.desc()).first()
+    except Exception:
+        # Fallback to id if completed_at fails
+        logger.warning(f"Sort by completed_at failed for user {user_id}, falling back to id.")
+        quiz = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.id.desc()).first()
+    
     quiz_score = quiz.score if (quiz and quiz.score is not None) else 0
 
     # 3. Latest Coding Score (30% weight)

@@ -1,8 +1,9 @@
 (() => {
     'use strict';
-    console.log(">>> SKILLMIND FRONTEND RELOADED v2 <<<");
+    console.log(">>> SKILLMIND FRONTEND RELOADED v2.2 (Hard Cache Busted) <<<");
 
-    const API = 'http://127.0.0.1:5000';  // Updated to point to backend port
+    // Dynamic API discovery: prefers localhost if currently on localhost, or uses 127.0.0.1 as default
+    const API = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'http://127.0.0.1:5000';
     const socket = io('http://127.0.0.1:5000'); // Initialize Socket.IO connection to backend
 
     /* ===== State ===== */
@@ -940,7 +941,7 @@
             });
         });
 
-        $('#generateReportBtn')?.addEventListener('click', generateReport);
+        $('#generateReportBtn')?.addEventListener('click', unifiedReportHandler);
     }
 
     /* ===== Dashboard ===== */
@@ -1023,119 +1024,128 @@
         }
     }
 
-    async function generateReport() {
+    // Single source of truth for generating both data-sync and printable summary
+    async function unifiedReportHandler() {
+        // Open window immediately to avoid popup blockers (browsers prefer synchronous calls)
+        const reportWindow = window.open('', '_blank');
+        
         const btn = $('#generateReportBtn');
+        if (!btn) return;
+        
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> Generating...';
+        btn.innerHTML = '<span class="spinner"></span> Syncing...';
 
         try {
+            if (!reportWindow) {
+                throw new Error('Popup blocked! Please allow popups for this site to view your report.');
+            }
+
+            // Show a loading message in the new window while we wait for the data
+            reportWindow.document.write('<html><body style="font-family:sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; color:#666;"><div><h2>Generating your premium report...</h2><p>Please wait a moment while we synchronize your latest data.</p></div></body></html>');
+
+            // 1. Sync backend scores
+            await api('/api/scoring/generate-report', { method: 'POST' });
+            
+            // 2. Fetch latest stats
+            btn.innerHTML = '<span class="spinner"></span> Building Report...';
             const data = await api('/api/dashboard/stats');
             const r = data.report;
             if (!r) throw new Error('No assessment data found. Please complete all sections.');
 
-            const reportWindow = window.open('', '_blank');
+            // 3. Update Dashboard Dashboard UI
+            loadDashboard(); 
+
+            // 4. Open printable report
             const html = `
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <title>Interview Readiness Report - ${state.user.username}</title>
                     <style>
-                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+                        body { font-family: 'Plus Jakarta Sans', sans-serif; padding: 40px; color: #333; line-height: 1.6; background: #fff; }
                         .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #6366f1; padding-bottom: 20px; }
-                        .header h1 { color: #6366f1; margin: 0; }
-                        .section { margin-bottom: 30px; background: #f9f9fb; padding: 20px; border-radius: 12px; }
-                        .section h3 { margin-top: 0; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
+                        .header h1 { color: #6366f1; margin: 0; font-size: 2.2rem; }
+                        .section { margin-bottom: 30px; background: #f8fafc; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; }
+                        .section h3 { margin-top: 0; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; margin-bottom: 20px; }
                         .marks-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-                        .mark-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-                        .mark-val { font-size: 24px; font-weight: bold; color: #6366f1; }
-                        .total-score { text-align: center; font-size: 32px; font-weight: 800; color: #10b981; margin: 20px 0; }
-                        .analysis-item { margin-bottom: 15px; }
-                        .status-strong { color: #10b981; font-weight: 600; }
-                        .status-moderate { color: #f59e0b; font-weight: 600; }
-                        .status-weak { color: #ef4444; font-weight: 600; }
+                        .mark-item { background: white; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+                        .mark-label { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+                        .mark-val { font-size: 1.8rem; font-weight: 800; color: #6366f1; margin-top: 5px; }
+                        .total-score { text-align: center; font-size: 2rem; font-weight: 800; color: #10b981; margin: 25px 0; }
+                        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
+                        .status-strong { background: #dcfce7; color: #166534; }
+                        .status-moderate { background: #fef9c3; color: #854d0e; }
+                        .status-weak { background: #fee2e2; color: #991b1b; }
                         @media print { .no-print { display: none; } }
-                        .btn-print { background: #6366f1; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+                        .btn-print { background: #6366f1; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; width: 100%; max-width: 200px; }
                     </style>
                 </head>
                 <body>
-                    <div class="no-print" style="margin-bottom: 20px;">
-                        <button class="btn-print" onclick="window.print()">Print Report</button>
+                    <div class="no-print" style="text-align: right; margin-bottom: 25px;">
+                        <button class="btn-print" onclick="window.print()">Print Report PDF</button>
                     </div>
                     <div class="header">
-                        <h1>Skill Mind AI | Interview Readiness Report</h1>
-                        <p>Candidate: ${state.user.username} | Date: ${new Date().toLocaleDateString()}</p>
+                        <h1>Skill Mind AI</h1>
+                        <p>Comprehensive Interview Readiness Report</p>
+                        <p style="color: #64748b;">Candidate: <strong>${state.user.username}</strong> | Analysis Date: ${new Date().toLocaleDateString()}</p>
                     </div>
 
                     <div class="section">
-                        <h3>Overall Performance</h3>
+                        <h3>Performance Summary</h3>
                         <div class="total-score">
-                            Readiness Level: ${r.readiness_level || 'Moderate'}<br>
-                            <span style="font-size: 18px; color: #64748b;">(Score: ${r.final_score.toFixed(1)}/100)</span>
+                            Overall Readiness: ${Math.round(r.final_score)}%<br>
+                            <span class="status-badge status-${(r.readiness_level || 'Moderate').toLowerCase().replace(' ', '')}">${r.readiness_level || 'Moderate'}</span>
                         </div>
                         <div class="marks-grid">
-                            <div class="mark-item">
-                                <strong>Resume Marks</strong>
-                                <div class="mark-val">${r.marks?.resume || 0}/10</div>
-                            </div>
-                            <div class="mark-item">
-                                <strong>Quiz Marks</strong>
-                                <div class="mark-val">${r.marks?.quiz || 0}/30</div>
-                            </div>
-                            <div class="mark-item">
-                                <strong>Coding Marks</strong>
-                                <div class="mark-val">${r.marks?.coding || 0}/30</div>
-                            </div>
-                            <div class="mark-item">
-                                <strong>Interview Marks</strong>
-                                <div class="mark-val">${r.marks?.interview || 0}/30</div>
-                            </div>
+                            <div class="mark-item"><div class="mark-label">Resume Strength</div><div class="mark-val">${r.marks?.resume || 0}/10</div></div>
+                            <div class="mark-item"><div class="mark-label">Technical Quiz</div><div class="mark-val">${r.marks?.quiz || 0}/30</div></div>
+                            <div class="mark-item"><div class="mark-label">Coding Logic</div><div class="mark-val">${r.marks?.coding || 0}/30</div></div>
+                            <div class="mark-item"><div class="mark-label">Interview Impact</div><div class="mark-val">${r.marks?.interview || 0}/30</div></div>
                         </div>
                     </div>
 
                     <div class="section">
-                        <h3>Detailed Analysis & Recommendations</h3>
-                        ${r.analysis.map(a => `
-                            <div class="analysis-item">
-                                <strong>${a.category}:</strong> <span class="status-${a.status.toLowerCase()}">${a.status}</span>
-                                <p style="margin: 5px 0 0 0;">${a.suggestion}</p>
+                        <h3>Insights & Recommendations</h3>
+                        ${(r.analysis || []).map(a => `
+                            <div style="margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px dashed #e2e8f0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <strong style="color: #1e293b;">${a.category}</strong>
+                                    <span class="status-badge status-${a.status.toLowerCase()}">${a.status}</span>
+                                </div>
+                                <p style="margin: 8px 0 0 0; color: #475569; font-size: 0.95rem;">${a.suggestion}</p>
                             </div>
                         `).join('')}
                     </div>
 
                     <div class="section">
-                        <h3>Skills Profile</h3>
-                        <p>${data.skills && data.skills.length ? data.skills.join(', ') : 'No skills extracted yet.'}</p>
-                    </div>
-
-                    <div class="section">
-                        <h3>Recommended Job Vacancies in India 🇮🇳</h3>
-                        ${data.job_recommendations && data.job_recommendations.length ? data.job_recommendations.map(j => `
-                            <div class="mark-item" style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong style="color: #6366f1; font-size: 1.1rem;">${j.role}</strong><br>
-                                    <span style="color: #64748b;">${j.company} | ${j.location}</span>
-                                </div>
-                                <a href="${j.link}" target="_blank" style="background: #10b981; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 0.9rem; font-weight: 600;">Apply Now</a>
+                        <h3>Career Matching</h3>
+                        <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 15px;">Based on your current skill profile, here are top matching opportunities:</p>
+                        ${(data.job_recommendations || []).map(j => `
+                            <div style="background:#fff; padding:12px; border-radius:8px; margin-bottom:10px; border:1px solid #e2e8f0;">
+                                <strong style="color: #6366f1;">${j.role}</strong> — <span style="font-size:0.85rem; color:#64748b;">${j.company}</span>
                             </div>
-                        `).join('') : '<p>Complete assessment to see recommendations.</p>'}
+                        `).join('')}
                     </div>
 
-                    <footer style="text-align: center; color: #94a3b8; font-size: 0.8rem; margin-top: 50px;">
-                        Generated by Skill Mind AI - Your Intelligent Interview Copilot
+                    <footer style="text-align: center; color: #94a3b8; font-size: 0.8rem; margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+                        &copy; ${new Date().getFullYear()} Skill Mind AI - Empowering Your Career Journey
                     </footer>
                 </body>
                 </html>
             `;
+            reportWindow.document.open();
             reportWindow.document.write(html);
             reportWindow.document.close();
-            showToast('Report generated successfully!', 'success');
+            showToast('Report synchronized and generated!', 'success');
         } catch (err) {
-            showToast(err.message || 'Failed to generate report', 'error');
+            console.error('[ReportGen] Error:', err);
+            showToast(err.message || 'Error generating report.', 'error');
         } finally {
             btn.disabled = false;
             btn.textContent = 'Generate Report';
         }
     }
+
 
     function renderRadar(r) {
         const ctx = document.getElementById('radarChart');
@@ -2438,23 +2448,7 @@
 
     /* ===== Scoring / Report ===== */
     function initScoring() {
-        $('#generateReportBtn')?.addEventListener('click', async () => {
-            const btn = $('#generateReportBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Generating...';
-
-            try {
-                const data = await api('/api/scoring/generate-report', { method: 'POST' });
-                showToast('Report generated!', 'success');
-                loadDashboard();
-                showPage('dashboard');
-            } catch (err) {
-                alert(err.message || 'Error generating report.');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Generate Report';
-            }
-        });
+        $('#generateReportBtn')?.addEventListener('click', unifiedReportHandler);
     }
 
     /* ===== Profile & Settings ===== */
@@ -2470,26 +2464,58 @@
             const phoneInput = $('#profilePhone');
             if (select && phoneInput) {
                 const opt = select.options[select.selectedIndex];
+                const rawMaxLen = parseInt(opt.dataset.len) || 10;
                 const format = opt.dataset.format || '10 digits';
-                const lenMatch = format.match(/(\d+)(?:-(\d+))?/);
                 
-                let maxLen = 10;
-                if (lenMatch) {
-                    maxLen = lenMatch[2] ? parseInt(lenMatch[2]) : parseInt(lenMatch[1]);
-                }
-                
-                phoneInput.maxLength = maxLen;
+                // Adjust maxlength to account for spaces (approx 1 space per 3-4 digits)
+                const spaceCount = Math.floor(rawMaxLen / 3);
+                phoneInput.maxLength = rawMaxLen + spaceCount;
                 phoneInput.placeholder = `Enter ${format}`;
                 
-                // Real-time validation
-                phoneInput.addEventListener('input', function() {
-                    this.value = this.value.replace(/[^0-9]/g, '');
-                    if (this.value.length > maxLen) {
-                        this.value = this.value.slice(0, maxLen);
-                    }
-                });
+                // Initial format if loading data
+                formatAndSetPhone(phoneInput);
             }
         };
+
+        const formatAndSetPhone = (input) => {
+            let val = input.value.replace(/\s/g, '').replace(/[^0-9]/g, '');
+            let formatted = '';
+            
+            // Basic grouping logic (3-3-4 or 4-4 depending on length)
+            if (val.length > 0) {
+                if (val.length <= 8) {
+                    // 4-4 pattern for shorter numbers
+                    const parts = val.match(/.{1,4}/g);
+                    formatted = parts.join(' ');
+                } else {
+                    // 3-3-4 pattern for longer numbers (like India/US)
+                    const p1 = val.substring(0, 3);
+                    const p2 = val.substring(3, 6);
+                    const p3 = val.substring(6, 10);
+                    if (p3) formatted = `${p1} ${p2} ${p3}`;
+                    else if (p2) formatted = `${p1} ${p2}`;
+                    else formatted = p1;
+                }
+            }
+            input.value = formatted;
+        };
+
+        // Initialize single input listener
+        const phoneInput = $('#profilePhone');
+        if (phoneInput) {
+            phoneInput.addEventListener('input', function(e) {
+                // Save cursor position
+                let cursor = this.selectionStart;
+                const oldLen = this.value.length;
+                
+                formatAndSetPhone(this);
+                
+                // Adjust cursor position if a space was added
+                const newLen = this.value.length;
+                if (newLen > oldLen) cursor++;
+                this.setSelectionRange(cursor, cursor);
+            });
+        }
 
         $('#profileCountryCode')?.addEventListener('change', updatePhoneRules);
         
@@ -2550,6 +2576,13 @@
                 const popup = $('#successPopupOverlay');
                 if (popup) {
                     popup.classList.add('show');
+                    
+                    // Close settings modal QUICKLY (0.3s)
+                    setTimeout(() => {
+                        closeSettingsModal();
+                    }, 300);
+
+                    // Hide success popup message LATER (2.0s)
                     setTimeout(() => {
                         popup.classList.remove('show');
                     }, 2000);
@@ -2562,6 +2595,14 @@
                 btn.textContent = originalText;
             }
         }
+
+        const closeSettingsModal = () => {
+            const unifiedModal = $('#unifiedSettingsModal');
+            if (unifiedModal) {
+                unifiedModal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        };
 
         // Event Listeners for Profile & Settings
         $('#profileFormInner')?.addEventListener('submit', (e) => {
@@ -2605,22 +2646,33 @@
         });
 
         // Close Modal
-        $('#closeUnifiedSettings')?.addEventListener('click', () => {
-            unifiedModal.classList.add('hidden');
-            document.body.style.overflow = '';
-        });
+        $('#closeUnifiedSettings')?.addEventListener('click', closeSettingsModal);
 
         // Sidebar Navigation Handling
-        $$('.sidebar-btn[data-settings-tab]').forEach(btn => {
+        const settingsButtons = $$('.sidebar-item[data-settings-tab]');
+        console.log(`initProfile: Found ${settingsButtons.length} settings sidebar buttons`);
+        
+        settingsButtons.forEach(btn => {
             btn.addEventListener('click', () => {
-                $$('.sidebar-btn[data-settings-tab]').forEach(b => b.classList.remove('active'));
+                const tab = btn.dataset.settingsTab;
+                console.log(`Settings Tab Clicked: ${tab}`);
+                
+                settingsButtons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 
                 $$('.settings-section').forEach(s => s.classList.add('hidden'));
-                const target = $(`#${btn.dataset.settingsTab}Section`);
-                if (target) target.classList.remove('hidden');
+                const target = $(`#${tab}Section`);
+                if (target) {
+                    target.classList.remove('hidden');
+                    console.log(`Showing section: #${tab}Section`);
+                } else {
+                    console.error(`Missing section: #${tab}Section`);
+                }
             });
         });
+
+        // Initialize Support Chat
+        initSupportChat();
 
         // History Setup
         $$('.history-tabs-container .btn-tab').forEach(tab => {
@@ -2849,6 +2901,88 @@
             }
             list.appendChild(div);
         });
+    }
+
+    function initSupportChat() {
+        const chatInput = $('#supportChatInput');
+        const sendBtn = $('#sendSupportChat');
+        const messagesContainer = $('#supportChatMessages');
+        let supportChatHistory = []; // Track conversation history for ARIA assistant
+
+        if (!chatInput || !sendBtn || !messagesContainer) return;
+
+        const sendMessage = async () => {
+            const text = chatInput.value.trim();
+            if (!text) return;
+
+            // Add User Message
+            appendChatMessage('user', text);
+            chatInput.value = '';
+            chatInput.focus();
+
+            // Show Typing Indicator
+            const typingId = showTypingIndicator();
+            
+            try {
+                // Use the standard api() helper
+                const data = await api('/api/support/chat', {
+                    method: 'POST',
+                    body: { 
+                        message: text,
+                        history: supportChatHistory // Send history for conversational context
+                    }
+                });
+
+                removeTypingIndicator(typingId);
+                
+                if (data && data.response) {
+                    appendChatMessage('ai', data.response);
+                    // Update history (keep last 10 messages to avoid large payloads)
+                    supportChatHistory.push({ role: 'user', content: text });
+                    supportChatHistory.push({ role: 'assistant', content: data.response });
+                    if (supportChatHistory.length > 10) supportChatHistory = supportChatHistory.slice(-10);
+                } else {
+                    appendChatMessage('ai', "I'm sorry, I'm having trouble processing that right now. Please try again.");
+                }
+            } catch (err) {
+                console.error('Chat error:', err);
+                removeTypingIndicator(typingId);
+                appendChatMessage('ai', "Sorry, I can't connect to the support service right now. Please check your connection.");
+            }
+        };
+
+        sendBtn.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        function appendChatMessage(sender, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${sender}-message`;
+            msgDiv.innerHTML = `<div class="message-bubble">${text}</div>`;
+            messagesContainer.appendChild(msgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const id = 'typing-' + Date.now();
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message ai-message';
+            typingDiv.id = id;
+            typingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <span></span><span></span><span></span>
+                </div>
+            `;
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            return id;
+        }
+
+        function removeTypingIndicator(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
     }
 
     /* ===== Init ===== */

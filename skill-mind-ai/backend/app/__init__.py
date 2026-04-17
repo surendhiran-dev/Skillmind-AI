@@ -27,7 +27,11 @@ def create_app():
     db.init_app(app)
     jwt.init_app(app)
     socketio.init_app(app)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    CORS(app, resources={r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin"]
+    }})
     
     # Debugging JWT
     @jwt.unauthorized_loader
@@ -98,6 +102,7 @@ def create_app():
     from .routes.scoring_routes import scoring_bp
     from .routes.dashboard_routes import dashboard_bp
     from .routes.profile_routes import profile_bp
+    from .routes.support_routes import support_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(resume_bp, url_prefix='/api/resume')
@@ -107,6 +112,7 @@ def create_app():
     app.register_blueprint(scoring_bp, url_prefix='/api/scoring')
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
     app.register_blueprint(profile_bp, url_prefix='/api/profile')
+    app.register_blueprint(support_bp, url_prefix='/api/support')
     
     # Import socket events to register them
     from .websocket import interview_socket

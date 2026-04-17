@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link rel="stylesheet" href="style.css?force_update=999">
+    <link rel="stylesheet" href="style.css?force_update=1011">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet" media="print" onload="this.media='all'">
     <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
@@ -1396,17 +1396,47 @@
                                 <label>Phone Number</label>
                                 <div class="phone-input-wrap">
                                     <select id="profileCountryCode" class="phone-select">
-                                        <option value="+1" data-code="US" data-len="10" data-format="10 digits">🇺🇸 +1</option>
-                                        <option value="+44" data-code="GB" data-len="10" data-format="10 digits">🇬🇧 +44</option>
-                                        <option value="+91" data-code="IN" data-len="10" data-format="10 digits" selected>🇮🇳 +91</option>
-                                        <option value="+61" data-code="AU" data-len="9" data-format="9 digits">🇦🇺 +61</option>
-                                        <option value="+81" data-code="JP" data-len="10" data-format="10 digits">🇯🇵 +81</option>
-                                        <option value="+86" data-code="CN" data-len="11" data-format="11 digits">🇨🇳 +86</option>
-                                        <option value="+49" data-code="DE" data-len="11" data-format="10-11 digits">🇩🇪 +49</option>
-                                        <option value="+33" data-code="FR" data-len="9" data-format="9 digits">🇫🇷 +33</option>
-                                        <option value="+55" data-code="BR" data-len="11" data-format="10-11 digits">🇧🇷 +55</option>
-                                        <option value="+65" data-code="SG" data-len="8" data-format="8 digits">🇸🇬 +65</option>
-                                        <option value="+971" data-code="AE" data-len="9" data-format="9 digits">🇦🇪 +971</option>
+                                        <option value="+1" data-code="US" data-len="10" data-format="10 digits">🇺🇸 +1 (USA)</option>
+                                        <option value="+1" data-code="CA" data-len="10" data-format="10 digits">🇨🇦 +1 (Canada)</option>
+                                        <option value="+44" data-code="GB" data-len="10" data-format="10 digits">🇬🇧 +44 (UK)</option>
+                                        <option value="+91" data-code="IN" data-len="10" data-format="10 digits" selected>🇮🇳 +91 (India)</option>
+                                        <option value="+61" data-code="AU" data-len="9" data-format="9 digits">🇦🇺 +61 (Australia)</option>
+                                        <option value="+81" data-code="JP" data-len="10" data-format="10 digits">🇯🇵 +81 (Japan)</option>
+                                        <option value="+86" data-code="CN" data-len="11" data-format="11 digits">🇨🇳 +86 (China)</option>
+                                        <option value="+49" data-code="DE" data-len="10" data-format="10-11 digits">🇩🇪 +49 (Germany)</option>
+                                        <option value="+33" data-code="FR" data-len="9" data-format="9 digits">🇫🇷 +33 (France)</option>
+                                        <option value="+55" data-code="BR" data-len="11" data-format="10-11 digits">🇧🇷 +55 (Brazil)</option>
+                                        <option value="+65" data-code="SG" data-len="8" data-format="8 digits">🇸🇬 +65 (Singapore)</option>
+                                        <option value="+971" data-code="AE" data-len="9" data-format="9 digits">🇦🇪 +971 (UAE)</option>
+                                        <option value="+966" data-code="SA" data-len="9" data-format="9 digits">🇸🇦 +966 (Saudi Arabia)</option>
+                                        <option value="+7" data-code="RU" data-len="10" data-format="10 digits">🇷🇺 +7 (Russia)</option>
+                                        <option value="+39" data-code="IT" data-len="10" data-format="10 digits">🇮🇹 +39 (Italy)</option>
+                                        <option value="+34" data-code="ES" data-len="9" data-format="9 digits">🇪🇸 +34 (Spain)</option>
+                                        <option value="+52" data-code="MX" data-len="10" data-format="10 digits">🇲🇽 +52 (Mexico)</option>
+                                        <option value="+27" data-code="ZA" data-len="9" data-format="9 digits">🇿🇦 +27 (South Africa)</option>
+                                        <option value="+82" data-code="KR" data-len="10" data-format="10 digits">🇰🇷 +82 (South Korea)</option>
+                                        <option value="+62" data-code="ID" data-len="10" data-format="10 digits">🇮🇩 +62 (Indonesia)</option>
+                                        <option value="+60" data-code="MY" data-len="9" data-format="9 digits">🇲🇾 +60 (Malaysia)</option>
+                                        <option value="+66" data-code="TH" data-len="9" data-format="9 digits">🇹🇭 +66 (Thailand)</option>
+                                        <option value="+84" data-code="VN" data-len="9" data-format="9 digits">🇻🇳 +84 (Vietnam)</option>
+                                        <option value="+92" data-code="PK" data-len="10" data-format="10 digits">🇵🇰 +92 (Pakistan)</option>
+                                        <option value="+880" data-code="BD" data-len="10" data-format="10 digits">🇧🇩 +880 (Bangladesh)</option>
+                                        <option value="+94" data-code="LK" data-len="9" data-format="9 digits">🇱🇰 +94 (Sri Lanka)</option>
+                                        <option value="+977" data-code="NP" data-len="10" data-format="10 digits">🇳🇵 +977 (Nepal)</option>
+                                        <option value="+90" data-code="TR" data-len="10" data-format="10 digits">🇹🇷 +90 (Turkey)</option>
+                                        <option value="+20" data-code="EG" data-len="10" data-format="10 digits">🇪🇬 +20 (Egypt)</option>
+                                        <option value="+234" data-code="NG" data-len="10" data-format="10 digits">🇳🇬 +234 (Nigeria)</option>
+                                        <option value="+254" data-code="KE" data-len="9" data-format="9 digits">🇰🇪 +254 (Kenya)</option>
+                                        <option value="+54" data-code="AR" data-len="10" data-format="10 digits">🇦🇷 +54 (Argentina)</option>
+                                        <option value="+64" data-code="NZ" data-len="9" data-format="9 digits">🇳🇿 +64 (New Zealand)</option>
+                                        <option value="+63" data-code="PH" data-len="10" data-format="10 digits">🇵🇭 +63 (Philippines)</option>
+                                        <option value="+31" data-code="NL" data-len="9" data-format="9 digits">🇳🇱 +31 (Netherlands)</option>
+                                        <option value="+41" data-code="CH" data-len="9" data-format="9 digits">🇨🇭 +41 (Switzerland)</option>
+                                        <option value="+46" data-code="SE" data-len="9" data-format="9 digits">🇸🇪 +46 (Sweden)</option>
+                                        <option value="+351" data-code="PT" data-len="9" data-format="9 digits">🇵🇹 +351 (Portugal)</option>
+                                        <option value="+30" data-code="GR" data-len="10" data-format="10 digits">🇬🇷 +30 (Greece)</option>
+                                        <option value="+48" data-code="PL" data-len="9" data-format="9 digits">🇵🇱 +48 (Poland)</option>
+                                        <option value="+353" data-code="IE" data-len="9" data-format="9 digits">🇮🇪 +353 (Ireland)</option>
                                     </select>
                                     <input type="tel" id="profilePhone" placeholder="Enter phone number">
                                 </div>
@@ -1457,16 +1487,20 @@
                     <div class="section-header" style="margin-bottom: 2rem;">
                         <h1 style="font-size: 2rem;">Help & <span style="color: #6366f1;">Support</span></h1>
                     </div>
-                    <div class="help-content" style="color: var(--text-muted); line-height: 1.7;">
-                        <p style="margin-bottom: 1.5rem; font-size: 1.1rem; color: #fff;">Welcome to the unified SkillMind AI platform! Navigating your professional growth just got simpler.</p>
-                        <h3 style="color: #fff; margin-bottom: 1rem;">Understanding Your Performance</h3>
-                        <ul style="padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 2rem;">
-                            <li><strong style="color: #6366f1;">Resume:</strong> Scored out of 100 based on standard industry criteria and formatting logic.</li>
-                            <li><strong style="color: #6366f1;">Quizzes:</strong> AI-generated questions to validate domain expertise (max 30 pts).</li>
-                            <li><strong style="color: #6366f1;">Coding:</strong> LeetCode-style technical problem-solving assessments.</li>
-                            <li><strong style="color: #6366f1;">Interview:</strong> Your AI evaluator focuses on clarity, communication, and responsiveness in real-time.</li>
-                        </ul>
-                        <p>Need more assistance? Reach out to <a href="#" style="color: #6366f1; text-decoration: none;">support@skillmind.ai</a></p>
+                    <div class="support-chat-container">
+                        <div id="supportChatMessages" class="chat-messages">
+                            <div class="message ai-message">
+                                <div class="message-bubble">
+                                    Hi! I'm ARIA, your SkillMind AI Assistant. How can I help you today?
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-input-wrapper">
+                            <input type="text" id="supportChatInput" placeholder="Type your question here..." autocomplete="off">
+                            <button id="sendSupportChat">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1487,8 +1521,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/dist/face-api.js" defer></script>
     <script src="components/interview.js?v=11" defer></script>
-    <script src="interview_avatar.js?v=11" defer></script>
-    <script src="script.js?force_update=1000" defer></script>
+    <script src="script.js?force_update=1009" defer></script>
 </body>
 
 
