@@ -1,6 +1,6 @@
 (() => {
     'use strict';
-    console.log(">>> SKILLMIND FRONTEND RELOADED v2.2 (Hard Cache Busted) <<<");
+    console.log(">>> SKILLMIND FRONTEND RELOADED v2.5 (Dark Theme Enforced) <<<");
 
     // Dynamic API discovery: prefers localhost if currently on localhost, or uses 127.0.0.1 as default
     const API = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'http://127.0.0.1:5000';
@@ -2147,9 +2147,55 @@
                 $('#codeEditor').value = getStarterCode(p, lang);
             }
         });
+
+        // SMART EDITOR: Tab and Auto-indentation
+        const codeEditor = $('#codeEditor');
+        if (codeEditor) {
+            codeEditor.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = codeEditor.selectionStart;
+                    const end = codeEditor.selectionEnd;
+
+                    // Insert 4 spaces
+                    codeEditor.value = codeEditor.value.substring(0, start) + "    " + codeEditor.value.substring(end);
+
+                    // Put caret at right position
+                    codeEditor.selectionStart = codeEditor.selectionEnd = start + 4;
+                }
+
+                if (e.key === 'Enter') {
+                    // Smart indentation
+                    const start = codeEditor.selectionStart;
+                    const val = codeEditor.value;
+                    const before = val.substring(0, start);
+                    const lines = before.split('\n');
+                    const currentLine = lines[lines.length - 1];
+                    const indentMatch = currentLine.match(/^\s*/);
+                    let indent = indentMatch ? indentMatch[0] : "";
+
+                    // If previous line ends with colon or open brace, add extra indent
+                    if (currentLine.trim().endsWith(':') || currentLine.trim().endsWith('{')) {
+                        indent += "    ";
+                    }
+
+                    if (indent.length > 0) {
+                        e.preventDefault();
+                        const after = val.substring(start);
+                        codeEditor.value = before + "\n" + indent + after;
+                        codeEditor.selectionStart = codeEditor.selectionEnd = start + 1 + indent.length;
+                    }
+                }
+            });
+        }
     }
 
     function getStarterCode(problem, language) {
+        // 1. If the problem already has a specific starter code for THIS language (or it's the AI's choice), use it
+        if (problem.starter_code && (problem.language === language || !problem.language)) {
+            return problem.starter_code;
+        }
+
         const titleSnake = problem.title.toLowerCase().replace(/\s+/g, '_');
         
         switch(language) {
@@ -2158,11 +2204,16 @@
             case 'java':
                 return `public class Solution {\n    public Object ${titleSnake}(Object... args) {\n        // Write your solution here\n        return null;\n    }\n}\n`;
             case 'cpp':
-                return `#include <iostream>\n#include <vector>\n\nclass Solution {\npublic:\n    void ${titleSnake}() {\n        // Write your solution here\n    }\n};\n`;
+                return `#include <iostream>\n#include <vector>\n#include <string>\n\nclass Solution {\npublic:\n    // Adjust return type and parameters as needed\n    void ${titleSnake}() {\n        // Write your solution here\n    }\n};\n`;
+            case 'c':
+                return `#include <stdio.h>\n#include <stdlib.h>\n\n// Adjust return type and parameters as needed\nvoid ${titleSnake}() {\n    // Write your solution here\n}\n`;
+            case 'sql':
+                return `-- Write your SQL query here\n-- Problem: ${problem.title}\n\nSELECT * FROM ... WHERE ...;\n`;
             case 'go':
                 return `package main\n\nfunc ${titleSnake}() {\n    // Write your solution here\n}\n`;
+            case 'python':
             default:
-                return problem.starter_code || `def ${titleSnake}(*args):\n    # Write your solution here\n    pass\n`;
+                return `def ${titleSnake}(*args):\n    # Write your solution here\n    pass\n`;
         }
     }
 
@@ -2190,12 +2241,14 @@
                     'javascript': 'JavaScript',
                     'java': 'Java',
                     'cpp': 'C++',
+                    'c': 'C (GCC)',
+                    'sql': 'SQL Query',
                     'go': 'Go'
                 };
                 langSelector.innerHTML = state.detectedLanguages.map(l => 
                     `<option value="${l}">${langMap[l] || l}</option>`
                 ).join('');
-                langSelector.value = 'python';
+                langSelector.value = state.currentLanguage || 'python';
             }
 
             if (state.codingChallenges.length === 0) {
@@ -2319,6 +2372,8 @@
             hintsWrap?.classList.add('hidden');
         }
 
+        // Auto-select language disabled as per user request
+
         // Set Code in Editor
         $('#codeEditor').value = getStarterCode(p, state.currentLanguage || 'python');
         $('#codeOutputText').textContent = "";
@@ -2342,7 +2397,7 @@
         try {
             const data = await api('/api/coding/submit', {
                 method: 'POST',
-                body: { code, problem_id: p.id }
+                body: { code, problem_id: p.id, language: state.currentLanguage || 'python' }
             });
 
             const marks = data.marks || 0;
@@ -2407,7 +2462,7 @@
         try {
             const data = await api('/api/coding/submit-all', {
                 method: 'POST',
-                body: { submissions: state.codingSubmissions }
+                body: { submissions: state.codingSubmissions.map(s => ({...s, language: state.currentLanguage})) }
             });
 
             const marksTotal = data.total_marks || state.codingTotalMarks;

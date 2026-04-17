@@ -487,7 +487,10 @@ def generate_coding_challenge_llm(skills, jd_text=""):
 
     system_prompt = "You are a lead software engineer. Create high-quality coding challenges with test cases."
     prompt = f"""
-    Create ONE coding challenge (Python) related to these skills: {', '.join(skills)}.
+    Create ONE coding challenge related to these skills: {', '.join(skills)}.
+    Choose the MOST appropriate programming language for this problem from this list: ['python', 'javascript', 'java', 'cpp', 'go'].
+    (e.g., Use Python for data structures, JavaScript for web logic, etc.)
+    
     {'Context: ' + jd_text if jd_text else ''}
     
     Return the result ONLY as a JSON object with this EXACT structure:
@@ -495,12 +498,13 @@ def generate_coding_challenge_llm(skills, jd_text=""):
         "title": "Problem Title",
         "difficulty": "easy|medium|hard",
         "description": "Clear problem description",
+        "language": "python|javascript|java|cpp|go",
         "tags": ["Tag1", "Tag2"],
-        "starter_code": "def function_name(args):\\n    pass",
+        "starter_code": "Boilerplate code for the chosen language",
         "test_cases": [
             {{"input": "argument_value", "expected": "expected_return_value"}}
         ],
-        "test_wrapper": "result = function_name({{input}})"
+        "test_wrapper": "Expression to call the function and get result (e.g., 'result = function_name({input})')"
     }}
     """
     

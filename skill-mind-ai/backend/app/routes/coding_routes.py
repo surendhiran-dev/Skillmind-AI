@@ -42,6 +42,7 @@ def challenge_set():
             "description": p["description"],
             "examples": p.get("examples", []),
             "hints": p.get("hints", []),
+            "language": p.get("language", "python"),
             "starter_code": p["starter_code"],
             "max_marks": 5
         })
@@ -70,6 +71,7 @@ def get_problem(problem_id):
         "description": problem["description"],
         "examples": problem["examples"],
         "hints": problem["hints"],
+        "language": problem.get("language", "python"),
         "starter_code": problem["starter_code"],
     }), 200
 
@@ -88,9 +90,10 @@ def submit_code():
     if not code:
         return jsonify({"message": "No code provided"}), 400
 
-    is_valid, syntax_msg = check_syntax(code)
+    language = data.get('language', 'python').lower()
+    is_valid, syntax_msg = check_syntax(code, language)
     quality = evaluate_code_quality(code)
-    test_results, test_score = run_test_cases(code, problem_id)
+    test_results, test_score = run_test_cases(code, problem_id, language)
 
     if is_valid:
         final_score = round(0.7 * test_score + 0.3 * quality["score"])
@@ -171,9 +174,10 @@ def submit_all_coding():
             results.append({"problem_id": problem_id, "marks": 0, "max_marks": 5, "skipped": True})
             continue
         
-        is_valid, _ = check_syntax(code)
+        language = sub.get('language', 'python').lower()
+        is_valid, _ = check_syntax(code, language)
         quality = evaluate_code_quality(code)
-        test_results, test_score = run_test_cases(code, problem_id)
+        test_results, test_score = run_test_cases(code, problem_id, language)
         
         if is_valid:
             final_score = round(0.7 * test_score + 0.3 * quality["score"])

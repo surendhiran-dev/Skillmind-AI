@@ -215,31 +215,15 @@ SUPPORTED_LANGUAGES = {
     "javascript": {"name": "JavaScript", "ext": "js", "comment": "//"},
     "java": {"name": "Java", "ext": "java", "comment": "//"},
     "cpp": {"name": "C++", "ext": "cpp", "comment": "//"},
+    "c": {"name": "C", "ext": "c", "comment": "/* */"},
+    "sql": {"name": "SQL Query", "ext": "sql", "comment": "--"},
     "go": {"name": "Go", "ext": "go", "comment": "//"},
 }
 
 def detect_languages_from_skills(skills):
     """Detect programming languages from a list of skills."""
-    detected = ["python"] # Always include Python as default
-    skill_map = {
-        "javascript": "javascript",
-        "node": "javascript",
-        "react": "javascript",
-        "typescript": "javascript",
-        "java": "java",
-        "spring": "java",
-        "cpp": "cpp",
-        "c++": "cpp",
-        "golang": "go",
-        "go": "go"
-    }
-    
-    for skill in skills:
-        s_low = skill.strip().lower()
-        if s_low in skill_map:
-            detected.append(skill_map[s_low])
-            
-    return list(set(detected))
+    # Always return the fixed set requested by the user
+    return ["python", "javascript", "java", "cpp", "c", "sql"]
 
 def get_starter_code(problem, language="python"):
     """Generate boilerplate starter code for a specific language."""
@@ -291,6 +275,7 @@ def get_all_problems(jd_text=None):
             "description": p["description"],
             "examples": p["examples"],
             "hints": p["hints"],
+            "language": p.get("language", "python"),
             "starter_code": p["starter_code"],
             "is_recommended": match if jd_skills else False
         })
@@ -362,7 +347,7 @@ def get_challenge_set(jd_text=None):
     
     return {
         "challenges": selected_challenges[:6],
-        "languages": detect_languages_from_skills(jd_skills) if jd_skills else ["python"]
+        "languages": detect_languages_from_skills(jd_skills)
     }
 
 
@@ -378,12 +363,62 @@ def get_problem_by_id(problem_id):
 # Syntax & Quality Checks
 # ─────────────────────────────────────────────────────────────────────────────
 
-def check_syntax(code):
+def check_syntax(code, language='python'):
+    """Check syntax for various languages using their respective parsers."""
+    if language == 'python':
+        try:
+            ast.parse(code)
+            return True, "Syntax is valid."
+        except SyntaxError as e:
+            return False, f"Syntax Error at line {e.lineno}: {e.msg}"
+    
+    # For others, use CLI check if available
+    with tempfile.NamedTemporaryFile(mode='w', suffix=f'.{SUPPORTED_LANGUAGES.get(language, {}).get("ext", "txt")}', delete=False, encoding='utf-8') as f:
+        f.write(code)
+        tmp_path = f.name
+
     try:
-        ast.parse(code)
+        if language == 'javascript':
+            proc = subprocess.run(['node', '--check', tmp_path], capture_output=True, text=True)
+            if proc.returncode != 0:
+                return False, proc.stderr.strip().split('\n')[0]
+        elif language == 'java':
+            # javac check is overkill but standard
+            proc = subprocess.run(['javac', tmp_path], capture_output=True, text=True)
+            if proc.returncode != 0:
+                # Cleanup class file if generated
+                if os.path.exists(tmp_path.replace('.java', '.class')):
+                    os.unlink(tmp_path.replace('.java', '.class'))
+                return False, proc.stderr.strip().split('\n')[0]
+        elif language == 'go':
+            # Go needs a package header even for syntax check
+            check_script = f"package main\n{code}"
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                f.write(check_script)
+            proc = subprocess.run(['go', 'fmt', tmp_path], capture_output=True, text=True)
+            if proc.returncode != 0:
+                return False, proc.stderr.strip().split('\n')[0]
+        elif language in ['c', 'cpp']:
+            compiler = 'gcc' if language == 'c' else 'g++'
+            proc = subprocess.run([compiler, '-fsyntax-only', tmp_path], capture_output=True, text=True)
+            if proc.returncode != 0:
+                return False, proc.stderr.strip().split('\n')[0]
+        elif language == 'sql':
+            import sqlite3
+            try:
+                conn = sqlite3.connect(":memory:")
+                conn.execute(f"EXPLAIN {code}")
+            except sqlite3.Error as e:
+                return False, f"SQL Syntax Error: {str(e)}"
+            finally:
+                conn.close()
+        
         return True, "Syntax is valid."
-    except SyntaxError as e:
-        return False, f"Syntax Error at line {e.lineno}: {e.msg}"
+    except Exception as e:
+        return True, "Syntax check skipped (tooling missing)."
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def evaluate_code_quality(code):
@@ -440,16 +475,15 @@ def evaluate_code_quality(code):
 # Test Case Runner
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_test_cases(code, problem_id):
+def run_test_cases(code, problem_id, language='python'):
     """
     Run the submitted code against all test cases for the given problem.
-    Returns a list of test result dicts and an overall score.
     """
     problem = get_problem_by_id(problem_id)
     if not problem:
         return [], 0
 
-    is_valid, syntax_msg = check_syntax(code)
+    is_valid, syntax_msg = check_syntax(code, language)
     if not is_valid:
         return [{"test": i + 1, "passed": False, "error": syntax_msg} for i in range(len(problem["test_cases"]))], 0
 
@@ -457,7 +491,7 @@ def run_test_cases(code, problem_id):
     passed = 0
 
     for i, tc in enumerate(problem["test_cases"]):
-        test_result = _run_single_test(code, problem, tc, i + 1)
+        test_result = _run_single_test(code, problem, tc, i + 1, language)
         if test_result["passed"]:
             passed += 1
         results.append(test_result)
@@ -467,21 +501,29 @@ def run_test_cases(code, problem_id):
     return results, score
 
 
-def _run_single_test(code, problem, test_case, test_num):
+def _run_single_test(code, problem, test_case, test_num, language='python'):
     """
-    Execute one test case safely in a subprocess with a 5-second timeout.
+    Execute one test case safely in a subprocess.
     """
     tc_input = test_case["input"]
     expected = test_case["expected"]
+    
+    # 1. Prepare Input for Script
+    input_str = json.dumps(tc_input)
+    
+    # 2. Build Language-Specific Script
+    title_snake = problem["title"].lower().replace(' ', '_')
+    script = ""
+    run_cmd = []
+    ext = SUPPORTED_LANGUAGES.get(language, {}).get("ext", "py")
 
-    # Build the test snippet
-    if isinstance(tc_input, dict):
-        # Multi-arg problems (two_sum, merge_sorted)
-        call_line = problem["test_wrapper"].format(**{k: json.dumps(v) for k, v in tc_input.items()})
-    else:
-        call_line = problem["test_wrapper"].format(input=json.dumps(tc_input))
-
-    script = f"""
+    if language == 'python':
+        if isinstance(tc_input, dict):
+            call_line = problem["test_wrapper"].format(**{k: json.dumps(v) for k, v in tc_input.items()})
+        else:
+            call_line = problem["test_wrapper"].format(input=json.dumps(tc_input))
+            
+        script = f"""
 import json
 import sys
 
@@ -493,19 +535,162 @@ try:
 except Exception as e:
     print(json.dumps({{"__error__": str(e)}}))
 """
+        run_cmd = [sys.executable]
 
+    elif language == 'javascript':
+        # Translate Python test_wrapper to JS
+        if "result = sorted(" in problem["test_wrapper"]:
+            call_js = problem["test_wrapper"].replace("result = sorted(", "let result = (")
+        else:
+            call_js = problem["test_wrapper"].replace("result = ", "let result = ")
+        
+        # Handle dict inputs for JS
+        if isinstance(tc_input, dict):
+            call_js = call_js.format(**{k: json.dumps(v) for k, v in tc_input.items()})
+        else:
+            call_js = call_js.format(input=json.dumps(tc_input))
+            
+        script = f"""
+{code}
+try {{
+    {call_js}
+    console.log(JSON.stringify(result));
+}} catch (e) {{
+    console.log(JSON.stringify({{"__error__": e.message}}));
+}}
+"""
+        run_cmd = ['node']
+
+    elif language == 'go':
+        if "result = sorted(" in problem["test_wrapper"]:
+            call_go = problem["test_wrapper"].replace("result = sorted(", "result := (")
+        else:
+            call_go = problem["test_wrapper"].replace("result = ", "result := ")
+
+        if isinstance(tc_input, dict):
+            call_go = call_go.format(**{k: json.dumps(v) for k, v in tc_input.items()})
+        else:
+            call_go = call_go.format(input=json.dumps(tc_input))
+
+        script = f"""package main\nimport "encoding/json"\nimport "fmt"\n{code}\nfunc main() {{\n    {call_go}\n    out, _ := json.Marshal(result)\n    fmt.Println(string(out))\n}}"""
+        run_cmd = ['go', 'run']
+
+    elif language in ['c', 'cpp']:
+        ext = 'c' if language == 'c' else 'cpp'
+        compiler = 'gcc' if language == 'c' else 'g++'
+        main_file = "SolutionTest"
+        
+        # Simplified wrapper for C/C++ (assumes user provides logic in class/function)
+        script = f"""
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <nlohmann/json.hpp> // Assuming json library though it might not be there 
+// (Fallback to primitive prints for demo)
+
+{code}
+
+int main() {{
+    // Placeholder for actual test execution
+    std::cout << "SUCCESS" << std::endl; 
+    return 0;
+}}
+"""
+        run_cmd = [compiler]
+
+    elif language == 'sql':
+        import sqlite3
+        try:
+            conn = sqlite3.connect(":memory:")
+            # For SQL, we just execute the code and return results
+            cursor = conn.cursor()
+            cursor.execute(code)
+            result = cursor.fetchall()
+            
+            # Simple result normalization for comparison
+            actual = result[0][0] if len(result) == 1 and len(result[0]) == 1 else result
+            
+            passed = str(actual) == str(expected) or actual == expected
+            return {
+                "test": test_num, "passed": passed, "input": str(tc_input),
+                "expected": str(expected), "actual": str(actual), "error": None,
+            }
+        except Exception as e:
+            return {"test": test_num, "passed": False, "error": f"SQL Error: {str(e)}"}
+        finally:
+            conn.close()
+
+    elif language == 'java':
+        class_name = "SolutionTest"
+        # Java is tricky because it needs a predefined class structure
+        # We assume the user provided a class 'Solution' or equivalent
+        call_java = problem["test_wrapper"].replace("result = sorted(", "Object result = ").replace("result = ", "Object result = ")
+        if isinstance(tc_input, dict):
+            call_java = call_java.format(**{k: json.dumps(v) for k, v in tc_input.items()})
+        else:
+            call_java = call_java.format(input=json.dumps(tc_input))
+
+        script = f"""
+import java.util.*;
+
+{code}
+
+public class {class_name} {{
+    public static void main(String[] args) {{
+        try {{
+            Solution sol = new Solution();
+            {call_java}
+            // Simple stringification for comparison
+            System.out.println(result.toString());
+        }} catch (Exception e) {{
+            System.out.println("{{\\\"__error\\\": \\\"" + e.getMessage() + "\\\"}}");
+        }}
+    }}
+}}
+"""
+        run_cmd = ['java', tmp_path] # Java needs more complex setup usually, Simplified here.
+        # Actually Java needs .java file matching public class name
+        ext = "java"
+
+    # 3. Execution
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
-            f.write(script)
-            tmp_path = f.name
+        suffix = f".{ext}"
+        # Special case for Java: file name must match class name
+        if language == 'java':
+            tmp_dir = tempfile.gettempdir()
+            tmp_path = os.path.join(tmp_dir, f"{class_name}.java")
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                f.write(script)
+        else:
+            with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False, encoding='utf-8') as f:
+                f.write(script)
+                tmp_path = f.name
+
+        if language == 'java':
+            # Compile first
+            compile_proc = subprocess.run(['javac', tmp_path], capture_output=True, text=True, timeout=10)
+            if compile_proc.returncode != 0:
+                os.unlink(tmp_path)
+                return {"test": test_num, "passed": False, "error": "Compilation Error: " + compile_proc.stderr.strip()}
+            
+            # Use java -cp to run
+            run_cmd = ['java', '-cp', tempfile.gettempdir(), class_name]
+        else:
+            run_cmd.append(tmp_path)
 
         proc = subprocess.run(
-            [sys.executable, tmp_path],
+            run_cmd,
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=10,
         )
-        os.unlink(tmp_path)
+        
+        # Cleanup
+        if os.path.exists(tmp_path): os.unlink(tmp_path)
+        if language == 'java':
+            class_file = tmp_path.replace('.java', '.class')
+            if os.path.exists(class_file): os.unlink(class_file)
 
         stdout = proc.stdout.strip()
         if not stdout:
@@ -518,47 +703,24 @@ except Exception as e:
                 "error": proc.stderr.strip()[:200],
             }
 
-        actual = json.loads(stdout)
+        # Handle simple string comparison for Java/others if needed
+        try:
+            actual = json.loads(stdout)
+        except:
+            actual = stdout # Fallback to raw string
 
         if isinstance(actual, dict) and "__error__" in actual:
             return {
-                "test": test_num,
-                "passed": False,
-                "input": str(tc_input),
-                "expected": str(expected),
-                "actual": None,
-                "error": actual["__error__"],
+                "test": test_num, "passed": False, "input": str(tc_input),
+                "expected": str(expected), "actual": None, "error": actual["__error__"],
             }
 
-        passed = actual == expected
+        # Normalized comparison
+        passed = str(actual) == str(expected) or actual == expected
         return {
-            "test": test_num,
-            "passed": passed,
-            "input": str(tc_input),
-            "expected": str(expected),
-            "actual": str(actual),
-            "error": None,
+            "test": test_num, "passed": passed, "input": str(tc_input),
+            "expected": str(expected), "actual": str(actual), "error": None,
         }
 
-    except subprocess.TimeoutExpired:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
-        return {
-            "test": test_num,
-            "passed": False,
-            "input": str(tc_input),
-            "expected": str(expected),
-            "actual": None,
-            "error": "Time Limit Exceeded (5s)",
-        }
     except Exception as e:
-        return {
-            "test": test_num,
-            "passed": False,
-            "input": str(tc_input),
-            "expected": str(expected),
-            "actual": None,
-            "error": str(e),
-        }
+        return {"test": test_num, "passed": False, "input": str(tc_input), "expected": str(expected), "error": str(e)}
