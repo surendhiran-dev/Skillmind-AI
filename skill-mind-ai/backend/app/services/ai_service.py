@@ -16,27 +16,38 @@ logger = logging.getLogger(__name__)
 
 # AI Module Configurations
 MODULE_CONFIGS = {
-    'resume': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
-    'quiz': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
-    'coding': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
-    'interview': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
-    'support': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"},
-    'default': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openrouter/auto"}
+    'resume': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
+    'quiz': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
+    'coding': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
+    'interview': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
+    'support': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
+    'default': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"}
 }
 
-DEFAULT_MODEL = "gpt-4o"
+DEFAULT_MODEL = "openai/gpt-oss-20b"
 HAS_AI = False # Global flag for any AI availability
 
 def initialize_client(api_key):
-    """Helper to create an OpenAI client from a key (OpenRouter or Standard)."""
+    """Helper to create an OpenAI client from a key (OpenRouter, NVIDIA NIM, or Standard)."""
     if not api_key: return None, False, False
     
+    # NVIDIA NIM Support
+    if api_key.startswith("nvapi-"):
+        try:
+            client = OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=api_key)
+            return client, True, False # Not OpenRouter
+        except Exception as e:
+            logger.error(f"NVIDIA NIM init failed: {e}")
+
+    # OpenRouter Support
     if api_key.startswith("sk-or-v1"):
         try:
             client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
             return client, True, True
         except Exception as e:
             logger.error(f"OpenRouter init failed: {e}")
+            
+    # Standard OpenAI Support
     elif api_key.startswith("sk-"):
         try:
             return OpenAI(api_key=api_key), True, False
@@ -480,36 +491,67 @@ def generate_quiz_llm(skills, jd_text=""):
     response_text = call_ai(prompt, system_prompt, module='quiz')
     return clean_json_response(response_text)
 
-def generate_coding_challenge_llm(skills, jd_text=""):
-    """Generate a dynamic coding challenge based on skills and Optional JD."""
+def generate_coding_challenges_batch_llm(skills, jd_text="", resume_text="", count=2, difficulty="medium"):
+    """
+    Generate multiple unique, real-time coding challenges based on candidate profile and job requirements.
+    Ensures problems are NOT static/repeated and relate to candidate experience.
+    """
     if not HAS_AI:
-        return None
+        return []
 
-    system_prompt = "You are a lead software engineer. Create high-quality coding challenges with test cases."
+    system_prompt = (
+        "You are a technical interview architect at a top-tier tech firm. "
+        "Create UNIQUE, real-world coding challenges that test practical development skills "
+        "rather than generic algorithms (no FizzBuzz, No Two Sum). "
+        "Focus on domain-specific logic relevant to the candidate's resume."
+    )
+    
     prompt = f"""
-    Create ONE coding challenge related to these skills: {', '.join(skills)}.
-    Choose the MOST appropriate programming language for this problem from this list: ['python', 'javascript', 'java', 'cpp', 'go'].
-    (e.g., Use Python for data structures, JavaScript for web logic, etc.)
+    CANDIDATE PROFILE:
+    - Top Skills: {', '.join(skills)}
+    - Relevant Experience/Resume Context: {resume_text[:2000] if resume_text else 'N/A'}
     
-    {'Context: ' + jd_text if jd_text else ''}
+    JOB DESCRIPTION CONTEXT:
+    {jd_text[:1000] if jd_text else 'Generic Technical Role'}
     
-    Return the result ONLY as a JSON object with this EXACT structure:
-    {{
+    TASK:
+    Generate EXACTLY {count} UNIQUE coding challenges of '{difficulty}' difficulty. 
+    Each problem MUST be different from common interview bank questions.
+    
+    OUTPUT REQUIREMENT:
+    Return EXACTLY {count} JSON objects in a root array. 
+    Failure to provide exactly {count} challenges will result in a system error.
+    
+    CRITICAL INSTRUCTION ON TEST WRAPPER:
+    The 'test_wrapper' should be a string template using Python-style format keys.
+    Use '{{input}}' if the problem takes a single argument, or individual keys like '{{records}}' if it takes multiple.
+    Example: "result = my_function({{input}})" or "result = my_function({{records}}=json.loads({{records}}))" 
+    Avoid language-specific class calls if possible (e.g. use "process_data({{input}})" instead of "DataProcessor.process({{input}})").
+    
+    Return the result EXCLUSIVELY as a JSON array of objects with this structure:
+    [
+      {{
         "title": "Problem Title",
-        "difficulty": "easy|medium|hard",
-        "description": "Clear problem description",
+        "difficulty": "{difficulty}",
+        "description": "Scenario-based description...",
         "language": "python|javascript|java|cpp|go",
-        "tags": ["Tag1", "Tag2"],
-        "starter_code": "Boilerplate code for the chosen language",
+        "tags": ["Scenario", "Production-Ready"],
+        "starter_code": "Boilerplate code...",
         "test_cases": [
-            {{"input": "argument_value", "expected": "expected_return_value"}}
+          {{"input": "argument_value", "expected": "expected_return_value"}}
         ],
-        "test_wrapper": "Expression to call the function and get result (e.g., 'result = function_name({input})')"
-    }}
+        "test_wrapper": "Expression to call (e.g., 'result = process_logs({{input}})')"
+      }}
+    ]
     """
     
     response_text = call_ai(prompt, system_prompt, module='coding')
-    return clean_json_response(response_text)
+    return clean_json_response(response_text) or []
+
+def generate_coding_challenge_llm(skills, jd_text=""):
+    """Compatibility wrapper for single challenge generation."""
+    res = generate_coding_challenges_batch_llm(skills, jd_text=jd_text, count=1)
+    return res[0] if res else None
 
 def generate_job_recommendations_llm(skills, readiness_score=None):
     """Generate job vacancy recommendations for India based on skills and performance."""

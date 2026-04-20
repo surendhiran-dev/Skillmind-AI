@@ -2417,11 +2417,19 @@
                 data.test_results.slice(0, 3).forEach(tc => {
                     const color = tc.passed ? 'var(--accent)' : 'var(--danger)';
                     html += `
-                        <div style="font-size:0.85rem; padding:0.5rem; background:rgba(255,255,255,0.02); border-left:3px solid ${color};">
-                            <div style="display:flex; justify-content:space-between;">
-                                <strong>Test ${tc.test}</strong>
-                                <span style="color:${color}; font-weight:700;">${tc.passed ? 'PASSED' : 'FAILED'}</span>
+                        <div style="font-size:0.85rem; padding:0.8rem; background:rgba(255,255,255,0.02); border-left:3px solid ${color}; border-radius: 4px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
+                                <strong style="color: ${color};">Test ${tc.test}</strong>
+                                <span style="color:${color}; font-weight:700; text-transform: uppercase;">${tc.passed ? 'PASSED ✓' : 'FAILED ✗'}</span>
                             </div>
+                            ${!tc.passed ? `
+                                <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px; font-family: monospace; font-size: 0.75rem;">
+                                    <div style="color: var(--text-dim);">Input: <span style="color: #fff;">${tc.input || 'N/A'}</span></div>
+                                    <div style="color: var(--text-dim);">Expected: <span style="color: #4ade80;">${tc.expected || 'N/A'}</span></div>
+                                    <div style="color: var(--text-dim);">Actual: <span style="color: var(--danger);">${tc.actual !== undefined ? tc.actual : 'No output'}</span></div>
+                                    ${tc.error ? `<div style="color: #f87171; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;">Error: ${tc.error}</div>` : ''}
+                                </div>
+                            ` : ''}
                         </div>
                     `;
                 });

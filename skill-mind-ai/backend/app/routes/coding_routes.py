@@ -6,7 +6,7 @@ from ..services.coding_service import (
     get_challenge_set
 )
 from ..services.scoring_service import refresh_user_score
-from ..models.models import CodingTest, db
+from ..models.models import CodingTest, Resume, Skill, db
 import random
 
 coding_bp = Blueprint('coding', __name__)
@@ -15,9 +15,11 @@ coding_bp = Blueprint('coding', __name__)
 @coding_bp.route('/problems', methods=['GET', 'POST'])
 @jwt_required()
 def list_problems():
-    """Return the list of all coding problems (no test cases). Filter by JD if provided."""
-    jd_text = request.args.get('jd', '') or (request.get_json() or {}).get('jd', '')
-    return jsonify({"problems": get_all_problems(jd_text)}), 200
+    """Return a placeholder or info about dynamic generation."""
+    return jsonify({
+        "message": "Skill-Mind AI now generates unique, real-time challenges based on your resume. Start an assessment to see them!",
+        "type": "dynamic"
+    }), 200
 
 
 @coding_bp.route('/challenge-set', methods=['POST', 'GET'])
@@ -28,7 +30,21 @@ def challenge_set():
     Problems are shuffled each time to avoid repetition."""
     data = request.get_json() or {}
     jd_text = data.get('jd', '')
-    res = get_challenge_set(jd_text)
+    
+    # Fetch User's Resume Context
+    user_id = int(get_jwt_identity())
+    resume = Resume.query.filter_by(user_id=user_id).order_by(Resume.uploaded_at.desc()).first()
+    resume_data = {}
+    if resume:
+        skills = [s.skill_name for s in Skill.query.filter_by(resume_id=resume.id).all()]
+        resume_data = {
+            "user_id": user_id,
+            "extracted_text": resume.extracted_text,
+            "skills": skills,
+            "structured_data": resume.structured_data
+        }
+    
+    res = get_challenge_set(jd_text, resume_data)
     challenges = res["challenges"]
     detected_languages = res["languages"]
     
@@ -119,16 +135,17 @@ def submit_code():
     except Exception as e:
         print(f"Error refreshing user score after single coding submission: {e}")
 
-    # Convert final_score (0-100) to marks out of 5
-    if final_score >= 80:
+    # Marks are now calculated based on quality score intervals as requested
+    q_score = quality.get("score", 0)
+    if q_score >= 81:
         marks = 5
-    elif final_score >= 60:
+    elif q_score >= 61:
         marks = 4
-    elif final_score >= 40:
+    elif q_score >= 41:
         marks = 3
-    elif final_score >= 20:
+    elif q_score >= 21:
         marks = 2
-    elif final_score > 0:
+    elif q_score > 0:
         marks = 1
     else:
         marks = 0
@@ -184,15 +201,17 @@ def submit_all_coding():
         else:
             final_score = 0
         
-        if final_score >= 80:
+        # Marks are now calculated based on quality score intervals as requested
+        q_score = quality.get("score", 0)
+        if q_score >= 81:
             marks = 5
-        elif final_score >= 60:
+        elif q_score >= 61:
             marks = 4
-        elif final_score >= 40:
+        elif q_score >= 41:
             marks = 3
-        elif final_score >= 20:
+        elif q_score >= 21:
             marks = 2
-        elif final_score > 0:
+        elif q_score > 0:
             marks = 1
         else:
             marks = 0

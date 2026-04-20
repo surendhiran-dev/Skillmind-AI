@@ -308,30 +308,34 @@ const ARIAAvatar = (() => {
 
   /* ── Mount ──────────────────────────────────────────────────── */
   function _mount() {
+    console.log('[ARIAAvatar] Attempting mount...');
     // Inject CSS once
     if (!document.getElementById('ariaAvatarStyle')) {
       const style = document.createElement('style');
       style.id = 'ariaAvatarStyle';
       style.textContent = CSS;
       document.head.appendChild(style);
+      console.log('[ARIAAvatar] CSS injected.');
     }
 
     // Support both id conventions
     const container = document.getElementById('iv-avatar-container') ||
       document.getElementById('ariaAvatarContainer');
+    
     if (!container) {
       console.warn('[ARIAAvatar] No avatar container found in DOM');
       return false;
     }
 
-    // Detect size from container or default to 180px
-    const size = container.dataset.size || container.offsetWidth || 180;
+    // Detect size from container or default to 210 for SkillMind
+    const size = parseInt(container.dataset.size) || container.offsetWidth || 210;
+    console.log('[ARIAAvatar] Sizing check:', { dataSize: container.dataset.size, offsetWidth: container.offsetWidth, final: size });
 
     container.innerHTML = `
       <div class="aria-ring-outer" style="width:${size}px;height:${size}px;">
         <div class="aria-ring-outer-in"></div>
       </div>
-      <div class="aria-pulse-ring" id="ariaPulseRing"></div>
+      <div class="aria-pulse-ring" id="ariaPulseRing" style="width:${size}px;height:${size}px;"></div>
       <div class="aria-svg-circle" style="width:${size}px;height:${size}px;">
         ${SVG_HTML}
       </div>
@@ -340,7 +344,7 @@ const ARIAAvatar = (() => {
     // Set initial state
     _applyState('idle');
     _mounted = true;
-    console.log('[ARIAAvatar] Mounted ✓ size=' + size);
+    console.log(`[ARIAAvatar] Mounted Successfully ✓ (size=${size}px)`);
     return true;
   }
 

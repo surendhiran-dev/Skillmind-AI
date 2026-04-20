@@ -151,4 +151,16 @@ class OTP(db.Model):
     email = db.Column(db.String(120), nullable=False)
     otp_code = db.Column(db.String(6), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    expires_at = db.Column(db.DateTime, nullable=False)
+class AIChallenge(db.Model):
+    __tablename__ = 'ai_challenges'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    title = db.Column(db.String(200))
+    difficulty = db.Column(db.String(20))
+    description = db.Column(db.Text)
+    language = db.Column(db.String(20))
+    tags = db.Column(db.JSON)
+    starter_code = db.Column(db.Text)
+    test_cases = db.Column(db.JSON) # List of dicts: {"input": ..., "expected": ...}
+    test_wrapper = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
