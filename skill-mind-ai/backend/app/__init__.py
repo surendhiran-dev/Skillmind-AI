@@ -11,7 +11,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 db = SQLAlchemy()
 jwt = JWTManager()
-socketio = SocketIO(cors_allowed_origins="*")
+socketio = SocketIO(cors_allowed_origins="*", async_mode='threading')
 
 def create_app():
     app = Flask(__name__)

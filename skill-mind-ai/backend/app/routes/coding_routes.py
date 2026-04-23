@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.coding_service import (
     check_syntax, evaluate_code_quality,
     run_test_cases, get_all_problems, get_problem_by_id,
-    get_challenge_set
+    get_challenge_set, get_ai_coding_analysis, calculate_comprehensive_score
 )
 from ..services.scoring_service import refresh_user_score
 from ..models.models import CodingTest, Resume, Skill, db
@@ -107,55 +107,77 @@ def submit_code():
         return jsonify({"message": "No code provided"}), 400
 
     language = data.get('language', 'python').lower()
-    is_valid, syntax_msg = check_syntax(code, language)
-    quality = evaluate_code_quality(code)
-    test_results, test_score = run_test_cases(code, problem_id, language)
-
-    if is_valid:
-        final_score = round(0.7 * test_score + 0.3 * quality["score"])
-    else:
-        final_score = 0
-
+    
+    # Initialize variables to prevent UnboundLocalError
+    test_results = []
+    test_score = 0
+    quality = {"score": 0, "feedback": "Evaluation skipped."}
+    is_valid = True
+    syntax_msg = ""
+    
+    # Verify language against problem
     problem = get_problem_by_id(problem_id)
     problem_title = problem["title"] if problem else f"Problem {problem_id}"
 
+    if problem and problem.get('language') != language:
+        is_valid = False
+        syntax_msg = f"Language Mismatch: Question requires {problem.get('language')}, but you submitted {language}."
+        test_score = 0
+        quality = {"score": 0, "feedback": syntax_msg}
+    if is_valid:
+        test_results, test_score, exec_time = run_test_cases(code, problem_id, language)
+        quality = evaluate_code_quality(code, language, problem_title=problem_title)
+        
+        # New Perfect Analysis (Deep AI Insights)
+        ai_analysis = get_ai_coding_analysis(code, language, problem, test_results)
+        
+        # Comprehensive weighted scoring
+        final_score = calculate_comprehensive_score(test_score, quality, ai_analysis)
+    else:
+        test_results = []
+        test_score = 0
+        exec_time = 0
+        quality = {"score": 0, "feedback": "Syntax error prevented evaluation."}
+        ai_analysis = {"logic_overview": "Evaluation skipped.", "bug_analysis": syntax_msg, "suggestions": ["Fix the syntax error first."]}
+        final_score = 0
+
+    # Marks logic: 1-5 scale mapped to final_score
+    # 90+ = 5, 75+ = 4, 55+ = 3, 35+ = 2, 10+ = 1
+    if final_score >= 90: marks = 5
+    elif final_score >= 75: marks = 4
+    elif final_score >= 55: marks = 3
+    elif final_score >= 35: marks = 2
+    elif final_score >= 10: marks = 1
+    else: marks = 0
+
+    # Persist the test
     new_test = CodingTest(
         user_id=user_id,
         problem_statement=problem_title,
         submitted_code=code,
         score=final_score,
-        quality_report=quality,
+        quality_report={
+            "quality": quality,
+            "ai_analysis": ai_analysis,
+            "exec_time": exec_time,
+            "test_score": test_score
+        }
     )
     db.session.add(new_test)
     db.session.commit()
 
-    # Trigger real-time dashboard update
     try:
         refresh_user_score(user_id)
-    except Exception as e:
-        print(f"Error refreshing user score after single coding submission: {e}")
-
-    # Marks are now calculated based on quality score intervals as requested
-    q_score = quality.get("score", 0)
-    if q_score >= 81:
-        marks = 5
-    elif q_score >= 61:
-        marks = 4
-    elif q_score >= 41:
-        marks = 3
-    elif q_score >= 21:
-        marks = 2
-    elif q_score > 0:
-        marks = 1
-    else:
-        marks = 0
+    except: pass
 
     return jsonify({
         "is_valid": is_valid,
         "syntax_message": syntax_msg,
         "test_results": test_results,
         "test_score": test_score,
-        "quality_report": quality,
+        "execution_time_ms": exec_time,
+        "expert_report": ai_analysis,
+        "quality_metrics": quality.get('details', {}),
         "final_score": final_score,
         "marks": marks,
         "max_marks": 5,
@@ -192,29 +214,37 @@ def submit_all_coding():
             continue
         
         language = sub.get('language', 'python').lower()
-        is_valid, _ = check_syntax(code, language)
-        quality = evaluate_code_quality(code)
-        test_results, test_score = run_test_cases(code, problem_id, language)
+        
+        # Verify language against problem
+        problem = get_problem_by_id(problem_id)
+        problem_title = problem["title"] if problem else f"Problem {problem_id}"
+
+        if problem and problem.get('language') != language:
+            is_valid = False
+            test_score = 0
+            quality = {"score": 0, "feedback": f"Language Mismatch: Question requires {problem.get('language')}"}
+        else:
+            is_valid, _ = check_syntax(code, language)
+            quality = evaluate_code_quality(code, language, problem_title=problem_title)
+            test_results, test_score = run_test_cases(code, problem_id, language)
         
         if is_valid:
             final_score = round(0.7 * test_score + 0.3 * quality["score"])
         else:
             final_score = 0
         
-        # Marks are now calculated based on quality score intervals as requested
-        q_score = quality.get("score", 0)
-        if q_score >= 81:
-            marks = 5
-        elif q_score >= 61:
-            marks = 4
-        elif q_score >= 41:
-            marks = 3
-        elif q_score >= 21:
-            marks = 2
-        elif q_score > 0:
-            marks = 1
+        # Marks calculation with Logic Gate
+        tmp_marks = 0
+        if final_score >= 81: tmp_marks = 5
+        elif final_score >= 61: tmp_marks = 4
+        elif final_score >= 41: tmp_marks = 3
+        elif final_score >= 21: tmp_marks = 2
+        elif final_score > 0: tmp_marks = 1
+        
+        if test_score < 20:
+            marks = min(tmp_marks, 1)
         else:
-            marks = 0
+            marks = tmp_marks
         
         total_marks += marks
         

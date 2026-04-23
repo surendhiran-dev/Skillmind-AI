@@ -30,8 +30,6 @@ def register():
     # Delete OTP after use
     db.session.delete(otp_record)
     
-    if User.query.filter_by(username=username).first():
-        return jsonify({"message": f"Username '{username}' already exists"}), 400
     if User.query.filter_by(email=email).first():
         return jsonify({"message": f"Email '{email}' already exists"}), 400
     
@@ -68,7 +66,7 @@ def send_otp():
     otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
     
     # Store OTP
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    expires_at = datetime.utcnow() + timedelta(minutes=1)
     new_otp = OTP(email=email, otp_code=otp_code, expires_at=expires_at)
     db.session.add(new_otp)
     db.session.commit()
@@ -81,18 +79,30 @@ def send_otp():
     
     return jsonify({"message": "OTP sent successfully"}), 200
 
+@auth_bp.route('/verify-otp-instant', methods=['POST'])
+def verify_otp_instant():
+    data = request.get_json()
+    email = data.get('email')
+    otp_code = data.get('otp')
+    
+    if not email or not otp_code:
+        return jsonify({"valid": False, "message": "Email and OTP are required"}), 400
+        
+    otp_record = OTP.query.filter_by(email=email, otp_code=otp_code).order_by(OTP.created_at.desc()).first()
+    
+    if otp_record and otp_record.expires_at > datetime.utcnow():
+        return jsonify({"valid": True}), 200
+    
+    return jsonify({"valid": False, "message": "Invalid or expired OTP"}), 200
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    if not data or not data.get('username') or not data.get('password'):
-        return jsonify({"message": "Username and password are required"}), 400
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({"message": "Email and password are required"}), 400
         
-    username_or_email = data.get('username')
-    user = User.query.filter_by(username=username_or_email).first()
-    
-    # If not found by username, try searching by email
-    if not user:
-        user = User.query.filter_by(email=username_or_email).first()
+    email = data.get('email')
+    user = User.query.filter_by(email=email).first()
     
     if user and user.check_password(data.get('password')):
         from flask_jwt_extended import create_access_token
@@ -106,7 +116,7 @@ def login():
             }
         }), 200
     
-    return jsonify({"message": "Invalid username or password"}), 401
+    return jsonify({"message": "Invalid email or password"}), 401
 
 
 @auth_bp.route('/me', methods=['GET'])
@@ -143,7 +153,7 @@ def forgot_password():
     otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
     
     # Store OTP
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    expires_at = datetime.utcnow() + timedelta(minutes=1)
     new_otp = OTP(email=email, otp_code=otp_code, expires_at=expires_at)
     db.session.add(new_otp)
     db.session.commit()

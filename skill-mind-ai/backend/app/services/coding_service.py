@@ -30,8 +30,29 @@ SUPPORTED_LANGUAGES = {
 
 def detect_languages_from_skills(skills):
     """Detect programming languages from a list of skills."""
-    # Always return the fixed set requested by the user
-    return ["python", "javascript", "java", "cpp", "c", "sql"]
+    skill_str = " ".join(skills).lower()
+    detected = []
+    
+    mapping = {
+        "python": ["python", "django", "flask", "fastapi", "pandas", "numpy", "pytorch", "tensorflow"],
+        "javascript": ["javascript", "js", "react", "node", "vue", "angular", "express", "nextjs", "typescript"],
+        "java": ["java", "spring", "maven", "gradle", "android", "kotlin"],
+        "cpp": ["c++", "cpp", "qt", "arduino"],
+        "c": [" c ", "embedded c"],
+        "sql": ["sql", "mysql", "postgres", "database", "oracle", "postgresql"],
+        "go": ["go ", "golang"],
+    }
+    
+    for lang, keywords in mapping.items():
+        if any(kw in skill_str for kw in keywords):
+            detected.append(lang)
+            
+    # Always include at least some defaults if none detected
+    if not detected:
+        detected = ["python", "javascript", "java"]
+        
+    # Standardize order and remove duplicates
+    return list(dict.fromkeys(detected))
 
 def get_starter_code(problem, language="python"):
     """Generate boilerplate starter code for a specific language."""
@@ -130,12 +151,21 @@ def get_challenge_set(jd_text=None, resume_data=None):
             while current_count < target_count and retries < max_retries:
                 try:
                     needed = target_count - current_count
+                    
+                    # Select languages for this batch
+                    detected_langs = detect_languages_from_skills(skills)
+                    batch_langs = []
+                    for i in range(needed):
+                        # Rotate through detected languages
+                        batch_langs.append(detected_langs[(len(selected_challenges) + i) % len(detected_langs)])
+
                     ai_batch = generate_coding_challenges_batch_llm(
                         skills=skills, 
                         jd_text=jd_text, 
                         resume_text=resume_text, 
                         count=needed, 
-                        difficulty=diff
+                        difficulty=diff,
+                        assigned_languages=batch_langs
                     )
                     
                     if not ai_batch:
@@ -271,81 +301,105 @@ def check_syntax(code, language='python'):
         
         return True, "Syntax is valid."
     except Exception as e:
-        return True, "Syntax check skipped (tooling missing)."
+        # Fallback heuristic: check for common keywords if tooling is missing
+        keywords = {
+            "python": ["def ", "import ", "print("],
+            "javascript": ["function ", "const ", "let ", "console.log"],
+            "java": ["public class ", "static void main", "System.out.print"],
+            "cpp": ["#include", "int main(", "std::"],
+            "c": ["#include", "int main("],
+            "go": ["package ", "func "],
+            "sql": ["SELECT ", "FROM ", "WHERE "]
+        }
+        
+        target_keys = keywords.get(language, [])
+        if any(k in code for k in target_keys):
+            return True, "Syntax is valid (heuristic check)."
+            
+        return False, f"Syntax verification failed: Code does not appear to be valid {language}."
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
 
-def evaluate_code_quality(code):
-    """Evaluate code quality using AST analysis with a fair, flexible scoring system."""
-    tree = None
-    try:
-        tree = ast.parse(code)
-    except Exception:
-        return {"score": 0, "feedback": "Code cannot be parsed."}
-
-    functions = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
-    loops = [n for n in ast.walk(tree) if isinstance(n, (ast.For, ast.While))]
-    classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
-    conditionals = [n for n in ast.walk(tree) if isinstance(n, ast.If)]
-    returns = [n for n in ast.walk(tree) if isinstance(n, ast.Return)]
-
-    # New base score (higher starting point for valid syntax)
-    score = 45 
-    feedback_parts = []
-
-    if functions:
-        score += 20
-        feedback_parts.append(f"{len(functions)} function(s)")
-    if loops or conditionals:
-        score += 15
-        feedback_parts.append("logic structures (loops/conditionals)")
-    if returns:
-        score += 5
-        feedback_parts.append("return statements")
+def evaluate_code_quality(code, language='python', problem_title=None):
+    """Evaluate code quality using language-specific analysis with a fair, flexible scoring system."""
     
-    lines = [l for l in code.split('\n') if l.strip() and not l.strip().startswith('#')]
-    if len(lines) > 5:
-        score += 10
-        feedback_parts.append("sufficient code length")
-
-    # Reward docstrings specifically
-    has_doc = False
-    for func in functions:
-        if (func.body and isinstance(func.body[0], ast.Expr)
-                and isinstance(func.body[0].value, ast.Constant)
-                and isinstance(func.body[0].value.value, str)):
-            has_doc = True
-            break
-    if has_doc:
-        score += 10
-        feedback_parts.append("docstrings present")
-
-    if classes:
-        score += 5 # Optional bonus
-        feedback_parts.append(f"{len(classes)} class(es)")
-
-    # New Check: Triviality/Boilerplate detection
-    # If no logic (loops/conditionals) and every function is just 'pass' or docstrings
-    has_implementation = False
-    if loops or conditionals:
-        has_implementation = True
-    else:
-        for func in functions:
-            # Look for nodes that aren't Pass, Expr (Docstrings), or simple return of default value
-            body_logic = [n for n in func.body if not isinstance(n, (ast.Pass, ast.Expr))]
-            if body_logic:
-                has_implementation = True
-                break
+    # 0. Language Identity Check
+    if language in ['java', 'cpp', 'c', 'go', 'javascript']:
+        python_telltales = ['def ', 'elif ', 'import pandas', 'print("'] 
+        if any(tt in code for tt in python_telltales) and ':' in code:
+            return {"score": 0, "feedback": f"Language mismatch detected.", "details": {"readability": 0, "efficiency": 0, "best_practices": 0}}
+            
+    # Heuristic metrics (0-100 scales)
+    readability = 40
+    efficiency = 50
+    best_practices = 45
     
-    if not has_implementation and not classes:
-        score = 15 # Below 20 as requested for "default syntax"
-        feedback = "Code quality: Default syntax/boilerplate submitted without implementation."
-    else:
-        feedback = ("Code quality: " + ", ".join(feedback_parts) + ".") if feedback_parts else "Basic code submitted."
+    # Check for keywords
+    code_lower = code.lower()
+    if 'import ' in code or 'include' in code: best_practices += 10
+    if ('for ' in code or 'while ' in code) and ('if ' in code): efficiency += 10
+    if len(code.split('\n')) > 15: readability += 10
+    if '"""' in code or '/*' in code or '//' in code: readability += 15
+    
+    # Penalty for short code
+    if len(code) < 50:
+        readability = max(10, readability - 30)
+        efficiency = max(10, efficiency - 30)
         
-    return {"score": min(score, 100), "feedback": feedback}
+    score = round(readability * 0.3 + efficiency * 0.3 + best_practices * 0.4)
+    
+    return {
+        "score": min(score, 100),
+        "feedback": "Analysis based on structure and patterns.",
+        "details": {
+            "readability": min(readability, 100),
+            "efficiency": min(efficiency, 100),
+            "best_practices": min(best_practices, 100)
+        }
+    }
+
+def get_ai_coding_analysis(code, language, problem, test_results):
+    """Provides a deep AI-driven analysis of the code logic and test failures."""
+    if not HAS_AI:
+        return {
+            "logic_overview": "AI analysis unavailable.",
+            "bug_analysis": "Check test cases for details.",
+            "suggestions": "Review standard language best practices."
+        }
+
+    # Prepare context for AI
+    failed_tests = [t for t in test_results if not t['passed']]
+    passed_count = len(test_results) - len(failed_tests)
+    
+    prompt = f"""
+    Analyze this code submission for the problem: "{problem['title']}".
+    Description: {problem['description']}
+    Language: {language}
+    
+    Test Results: {passed_count} passed, {len(failed_tests)} failed.
+    {f"Failed Details: {json.dumps(failed_tests[:2])}" if failed_tests else "All tests passed!"}
+    
+    Code:
+    {code}
+    
+    Provide a "Perfect Analysis" in the following JSON format:
+    {{
+        "logic_overview": "A concise (2-3 sentences) explanation of the candidate's logical approach.",
+        "bug_analysis": "If failed, explain the logical gap clearly. If passed, mention any subtle edge cases they handled well.",
+        "suggestions": "3 specific, high-end refactoring tips or algorithmic improvements.",
+        "complexity": {{ "time": "e.g. O(n)", "space": "e.g. O(1)" }}
+    }}
+    """
+    
+    from .ai_service import call_ai, clean_json_response
+    response = call_ai(prompt, "You are a Senior Technical Architect providing mentor-level code reviews.", module='coding')
+    return clean_json_response(response) or {
+        "logic_overview": "Logic completed. See test results.",
+        "bug_analysis": "No specific bugs identified beyond test failures.",
+        "suggestions": ["Add comments", "Refactor loops", "Handle edge cases"]
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -353,307 +407,157 @@ def evaluate_code_quality(code):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_test_cases(code, problem_id, language='python'):
-    """
-    Run the submitted code against all test cases for the given problem.
-    """
+    """Run all test cases for a problem and return results with a logic score and execution time."""
     problem = get_problem_by_id(problem_id)
     if not problem:
-        return [], 0
-
-    is_valid, syntax_msg = check_syntax(code, language)
-    if not is_valid:
-        return [{"test": i + 1, "passed": False, "error": syntax_msg} for i in range(len(problem["test_cases"]))], 0
+        return [], 0, 0
 
     results = []
-    passed = 0
+    total_similarity = 0
+    import time
+    start_time = time.time()
 
     for i, tc in enumerate(problem["test_cases"]):
-        test_result = _run_single_test(code, problem, tc, i + 1, language)
-        if test_result["passed"]:
-            passed += 1
-        results.append(test_result)
+        try:
+            test_result = _run_single_test(code, problem, tc, i + 1, language)
+            total_similarity += test_result.get("similarity", 0)
+            results.append(test_result)
+        except Exception as e:
+            results.append({
+                "test": i + 1,
+                "passed": False,
+                "error": f"Internal Runner Error: {str(e)}",
+                "similarity": 0
+            })
 
-    total = len(problem["test_cases"])
-    score = round((passed / total) * 100) if total > 0 else 0
-    return results, score
+    total_cases = len(problem["test_cases"])
+    test_score = round((total_similarity / total_cases) * 100) if total_cases > 0 else 0
+    execution_time = round((time.time() - start_time) * 1000, 2) # in ms
+    
+    return results, test_score, execution_time
 
+def calculate_comprehensive_score(test_score, quality_results, ai_analysis=None):
+    """Calculates a weighted final score out of 100 based on Functionality (60%) and Quality (40%)."""
+    quality_score = quality_results.get('score', 0)
+    
+    # Weighted calculation
+    final = (test_score * 0.6) + (quality_score * 0.4)
+    return round(final)
+
+
+def _get_target_func_name(wrapper):
+    """Extracts the function name being called in the test wrapper."""
+    if not wrapper: return None
+    import re
+    # Look for name before ( in the expression part (after =)
+    expr = wrapper.split('=')[-1]
+    match = re.search(r'([\w\d_]+)\s*\(', expr)
+    if match:
+        return match.group(1)
+    return None
 
 def _run_single_test(code, problem, test_case, test_num, language='python'):
-    """
-    Execute one test case safely in a subprocess.
-    """
-    # 1. Prepare Input for Script
-    # Resilience: Handle cases where the AI uses a semantic key instead of "input"
-    tc_input = test_case.get("input")
-    if tc_input is None:
-        # Fallback: find the first key that isn't "expected"
-        alternative_keys = [k for k in test_case.keys() if k != "expected"]
-        if alternative_keys:
-            tc_input = test_case[alternative_keys[0]]
-        else:
-            tc_input = {} # Truly empty input
+    """Execute one test case safely in a subprocess with stdout capture."""
+    try:
+        # 1. Prepare Input & Expected
+        tc_input = test_case.get("input")
+        if tc_input is None:
+            alternative_data = {k: v for k, v in test_case.items() if k != "expected"}
+            tc_input = list(alternative_data.values())[0] if len(alternative_data) == 1 else alternative_data
             
-    expected = test_case.get("expected")
-    input_str = json.dumps(tc_input)
-    
-    # 2. Build Language-Specific Script
-    title_snake = problem["title"].lower().replace(' ', '_')
-    script = ""
-    run_cmd = []
-    ext = SUPPORTED_LANGUAGES.get(language, {}).get("ext", "py")
+        expected = test_case.get("expected")
+        expected_str = json.dumps(expected) if isinstance(expected, (list, dict)) else str(expected)
+        
+        # 2. Build Language-Specific Script
+        script = ""
+        run_cmd = []
+        ext = SUPPORTED_LANGUAGES.get(language, {}).get("ext", "py")
 
-    if language == 'python':
-        if isinstance(tc_input, dict):
-            # Check if wrapper is compatible with the input keys
-            try:
-                call_line = problem["test_wrapper"].format(**{k: json.dumps(v) for k, v in tc_input.items()})
-                
-                # HEURISTIC: If wrapper uses '.' but user didn't define that class, it's likely a Java remnant
-                if "." in call_line.split('=')[-1] and "(" in call_line:
-                    found_func = _get_func_name(code)
-                    if found_func and found_func not in call_line:
-                        raise ValueError("Wrapper likely language-mismatched")
-            except (KeyError, ValueError):
-                # Fallback: find the first function defined in the code and use it
-                func_name = _get_func_name(code) or problem["title"].lower().replace(' ', '_')
+        if language == 'python':
+            run_cmd = [sys.executable]
+            func_name = _get_func_name(code) or "solution"
+            is_dict = isinstance(tc_input, dict)
+            if is_dict:
                 args_str = ", ".join([json.dumps(v) for v in tc_input.values()])
                 call_line = f"result = {func_name}({args_str})"
-        else:
-            try:
-                call_line = problem["test_wrapper"].format(input=json.dumps(tc_input))
-                if "." in call_line.split('=')[-1] and "(" in call_line:
-                    found_func = _get_func_name(code)
-                    if found_func and found_func not in call_line:
-                        raise ValueError("Wrapper likely language-mismatched")
-            except (KeyError, ValueError):
-                func_name = _get_func_name(code) or problem["title"].lower().replace(' ', '_')
+            else:
                 call_line = f"result = {func_name}({json.dumps(tc_input)})"
+                
+            script = f"""import json\nimport sys\n{code}\ntry:\n    {call_line}\n    print(json.dumps(result))\nexcept Exception as e:\n    print(json.dumps({{"__error__": str(e)}}))"""
+
+        elif language == 'javascript':
+            run_cmd = ['node']
+            func_name = _get_func_name(code) or "solution"
+            is_dict = isinstance(tc_input, dict)
+            if is_dict:
+                args_str = ", ".join([json.dumps(v) for v in tc_input.values()])
+                call_line = f"const result = {func_name}({args_str});"
+            else:
+                call_line = f"const result = {func_name}({json.dumps(tc_input)});"
+                
+            script = f"""{code}\ntry {{\n    {call_line}\n    console.log(JSON.stringify(result));\n}} catch (e) {{\n    console.log(JSON.stringify({{"__error__": e.message}}));\n}}"""
+
+        elif language == 'go':
+            run_cmd = ['go', 'run']
+            func_name = _get_func_name(code) or "solution"
+            is_dict = isinstance(tc_input, dict)
+            if is_dict:
+                args_str = ", ".join([json.dumps(v) for v in tc_input.values()])
+                call_line = f"result := {func_name}({args_str})"
+            else:
+                call_line = f"result := {func_name}({json.dumps(tc_input)})"
             
-        script = f"""
-import json
-import sys
+            script = f"""package main\nimport "encoding/json"\nimport "fmt"\n{code}\nfunc main() {{\n    {call_line}\n    out, _ := json.Marshal(result)\n    fmt.Println(string(out))\n}}"""
 
-{code}
-
-# Ensure result is defined even if execution fails
-result = "__not_computed__"
-try:
-    {call_line}
-    # Special normalization for floats/lists
-    def normalize_json(obj):
-        if isinstance(obj, float): return round(obj, 2)
-        if isinstance(obj, dict): return {{k: normalize_json(v) for k, v in obj.items()}}
-        if isinstance(obj, list): return [normalize_json(v) for v in obj]
-        return obj
-    
-    print(json.dumps(normalize_json(result)))
-except Exception as e:
-    print(json.dumps({{"__error__": str(e)}}))
-"""
-        run_cmd = [sys.executable]
-
-    elif language == 'javascript':
-        # Translate Python test_wrapper to JS
-        if "result = sorted(" in problem["test_wrapper"]:
-            call_js = problem["test_wrapper"].replace("result = sorted(", "let result = (")
         else:
-            call_js = problem["test_wrapper"].replace("result = ", "let result = ")
-        
-        # Handle dict inputs for JS
-        if isinstance(tc_input, dict):
-            call_js = call_js.format(**{k: json.dumps(v) for k, v in tc_input.items()})
-        else:
-            call_js = call_js.format(input=json.dumps(tc_input))
-            
-        script = f"""
-{code}
-try {{
-    {call_js}
-    console.log(JSON.stringify(result));
-}} catch (e) {{
-    console.log(JSON.stringify({{"__error__": e.message}}));
-}}
-"""
-        run_cmd = ['node']
+            # Fallback for others
+            run_cmd = [sys.executable] if language == 'python' else ['node']
+            script = code
 
-    elif language == 'go':
-        if "result = sorted(" in problem["test_wrapper"]:
-            call_go = problem["test_wrapper"].replace("result = sorted(", "result := (")
-        else:
-            call_go = problem["test_wrapper"].replace("result = ", "result := ")
+        # 3. Execution
+        with tempfile.NamedTemporaryFile(mode='w', suffix=f".{ext}", delete=False, encoding='utf-8') as f:
+            f.write(script)
+            tmp_path = f.name
 
-        if isinstance(tc_input, dict):
-            call_go = call_go.format(**{k: json.dumps(v) for k, v in tc_input.items()})
-        else:
-            call_go = call_go.format(input=json.dumps(tc_input))
-
-        script = f"""package main\nimport "encoding/json"\nimport "fmt"\n{code}\nfunc main() {{\n    {call_go}\n    out, _ := json.Marshal(result)\n    fmt.Println(string(out))\n}}"""
-        run_cmd = ['go', 'run']
-
-    elif language in ['c', 'cpp']:
-        ext = 'c' if language == 'c' else 'cpp'
-        compiler = 'gcc' if language == 'c' else 'g++'
-        main_file = "SolutionTest"
-        
-        # Simplified wrapper for C/C++ (assumes user provides logic in class/function)
-        script = f"""
-#include <iostream>
-#include <vector>
-#include <string>
-#include <algorithm>
-#include <nlohmann/json.hpp> // Assuming json library though it might not be there 
-// (Fallback to primitive prints for demo)
-
-{code}
-
-int main() {{
-    // Placeholder for actual test execution
-    std::cout << "SUCCESS" << std::endl; 
-    return 0;
-}}
-"""
-        run_cmd = [compiler]
-
-    elif language == 'sql':
-        import sqlite3
-        try:
-            conn = sqlite3.connect(":memory:")
-            # For SQL, we just execute the code and return results
-            cursor = conn.cursor()
-            cursor.execute(code)
-            result = cursor.fetchall()
-            
-            # Simple result normalization for comparison
-            actual = result[0][0] if len(result) == 1 and len(result[0]) == 1 else result
-            
-            passed = str(actual) == str(expected) or actual == expected
-            return {
-                "test": test_num, "passed": passed, "input": str(tc_input),
-                "expected": str(expected), "actual": str(actual), "error": None,
-            }
-        except Exception as e:
-            return {"test": test_num, "passed": False, "error": f"SQL Error: {str(e)}"}
-        finally:
-            conn.close()
-
-    elif language == 'java':
-        class_name = "SolutionTest"
-        # Java is tricky because it needs a predefined class structure
-        # We assume the user provided a class 'Solution' or equivalent
-        call_java = problem["test_wrapper"].replace("result = sorted(", "Object result = ").replace("result = ", "Object result = ")
-        if isinstance(tc_input, dict):
-            call_java = call_java.format(**{k: json.dumps(v) for k, v in tc_input.items()})
-        else:
-            call_java = call_java.format(input=json.dumps(tc_input))
-
-        script = f"""
-import java.util.*;
-
-{code}
-
-public class {class_name} {{
-    public static void main(String[] args) {{
-        try {{
-            Solution sol = new Solution();
-            {call_java}
-            // Simple stringification for comparison
-            System.out.println(result.toString());
-        }} catch (Exception e) {{
-            System.out.println("{{\\\"__error\\\": \\\"" + e.getMessage() + "\\\"}}");
-        }}
-    }}
-}}
-"""
-        run_cmd = ['java', tmp_path] # Java needs more complex setup usually, Simplified here.
-        # Actually Java needs .java file matching public class name
-        ext = "java"
-
-    # 3. Execution
-    try:
-        suffix = f".{ext}"
-        # Special case for Java: file name must match class name
-        if language == 'java':
-            tmp_dir = tempfile.gettempdir()
-            tmp_path = os.path.join(tmp_dir, f"{class_name}.java")
-            with open(tmp_path, 'w', encoding='utf-8') as f:
-                f.write(script)
-        else:
-            with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False, encoding='utf-8') as f:
-                f.write(script)
-                tmp_path = f.name
-
-        if language == 'java':
-            # Compile first
-            compile_proc = subprocess.run(['javac', tmp_path], capture_output=True, text=True, timeout=10)
-            if compile_proc.returncode != 0:
-                os.unlink(tmp_path)
-                return {"test": test_num, "passed": False, "error": "Compilation Error: " + compile_proc.stderr.strip()}
-            
-            # Use java -cp to run
-            run_cmd = ['java', '-cp', tempfile.gettempdir(), class_name]
-        else:
-            run_cmd.append(tmp_path)
-
-        proc = subprocess.run(
-            run_cmd,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        
-        # Cleanup
+        process = subprocess.run(run_cmd + [tmp_path], capture_output=True, text=True, timeout=10)
         if os.path.exists(tmp_path): os.unlink(tmp_path)
-        if language == 'java':
-            class_file = tmp_path.replace('.java', '.class')
-            if os.path.exists(class_file): os.unlink(class_file)
 
-        stdout = proc.stdout.strip()
-        stderr = proc.stderr.strip()
+        # 4. stdout & Result Processing
+        lines = [line for line in process.stdout.strip().split('\n') if line.strip()]
+        eval_result = None
+        user_stdout = []
         
-        if not stdout:
+        if lines:
+            try:
+                eval_result = json.loads(lines[-1])
+                user_stdout = lines[:-1]
+            except:
+                eval_result = lines[-1]
+                user_stdout = lines[:-1]
+
+        if isinstance(eval_result, dict) and "__error__" in eval_result:
             return {
-                "test": test_num,
-                "passed": False,
-                "input": str(tc_input),
-                "expected": str(expected),
-                "actual": f"No output. {f'Error: {stderr[:200]}' if stderr else ''}",
-                "error": stderr[:200] if stderr else "Empty output",
+                "test": test_num, "passed": False, "input": str(tc_input),
+                "expected": expected_str, "actual": "Runtime Error",
+                "stdout": "\n".join(user_stdout), "error": eval_result.get("__error__")
             }
 
-        # Attempt to parse json for consistency, fallback to raw
-        try:
-            actual = json.loads(stdout)
-        except:
-            actual = stdout
+        actual_val = eval_result if eval_result is not None else "No Output"
+        similarity = _calculate_similarity(actual_val, expected)
+        passed = similarity >= 0.95
+        actual_str = json.dumps(actual_val) if isinstance(actual_val, (list, dict)) else str(actual_val)
 
-        if isinstance(actual, dict) and "__error__" in actual:
-            return {
-                "test": test_num,
-                "passed": False,
-                "input": str(tc_input),
-                "expected": str(expected),
-                "actual": "Runtime Error",
-                "error": actual["__error__"][:500],
-            }
-
-        passed = _is_equivalent(actual, expected)
         return {
-            "test": test_num,
-            "passed": passed,
-            "input": str(tc_input),
-            "expected": str(expected),
-            "actual": str(actual)[:500],
-            "error": None if passed else "Logic mismatch",
+            "test": test_num, "passed": passed, "similarity": similarity,
+            "input": str(tc_input), "expected": expected_str, "actual": actual_str[:500],
+            "stdout": "\n".join(user_stdout),
+            "error": None if passed else ("Partial match" if similarity > 0.1 else "Logic mismatch")
         }
 
     except Exception as e:
         return {
-            "test": test_num,
-            "passed": False,
-            "input": str(tc_input),
-            "expected": str(expected),
-            "actual": "Execution Failed",
-            "error": str(e)[:500]
+            "test": test_num, "passed": False, "input": "N/A", "expected": "N/A",
+            "actual": "Execution Failed", "stdout": "", "error": str(e)[:500]
         }
 
 def _get_func_name(code):
@@ -667,22 +571,73 @@ def _get_func_name(code):
         pass
     return None
 
-def _is_equivalent(actual, expected):
-    """Check for logical equivalence between outputs (handles types and float rounding)."""
-    if actual == expected: return True
+def _calculate_similarity(actual, expected):
+    """Calculate the similarity (0.0 to 1.0) between actual and expected logic."""
+    if actual == expected: return 1.0
     
     # Try normalized string comparison
-    if str(actual).strip() == str(expected).strip(): return True
+    if str(actual).strip() == str(expected).strip(): return 1.0
     
-    # Try JSON/Float normalization comparison
     try:
+        # Handle Numbers
         if isinstance(actual, (int, float)) and isinstance(expected, (int, float)):
-            return round(float(actual), 2) == round(float(expected), 2)
-        
-        # Handle dicts with different key orders
+            if round(float(actual), 2) == round(float(expected), 2): return 1.0
+            # Numerical closeness
+            diff = abs(actual - expected)
+            if expected != 0:
+                rel = diff / abs(expected)
+                return max(0, 1.0 - rel)
+            return 0.0
+
+        # Handle Dicts (Structural Similarity)
         if isinstance(actual, dict) and isinstance(expected, dict):
-            return actual == expected
-    except:
+            if not actual and not expected: return 1.0
+            if not actual or not expected: return 0.0
+            
+            # Key set similarity with Type Tolerance (match 1 to "1")
+            norm_act = {str(k): k for k in actual.keys()}
+            norm_exp = {str(k): k for k in expected.keys()}
+            
+            keys_act = set(norm_act.keys())
+            keys_exp = set(norm_exp.keys())
+            
+            common_keys = keys_act.intersection(keys_exp)
+            all_keys = keys_act.union(keys_exp)
+            key_sim = len(common_keys) / len(all_keys) if all_keys else 0
+            
+            if not common_keys:
+                return key_sim * 0.4
+                
+            # Value similarity for common keys (mapped back to original values)
+            val_sim_sum = 0
+            for k in common_keys:
+                # Retrieve using the original key from the mapping
+                val_sim_sum += _calculate_similarity(actual[norm_act[k]], expected[norm_exp[k]])
+            
+            val_sim = val_sim_sum / len(keys_exp)
+            return (key_sim * 0.4) + (val_sim * 0.6)
+
+        # Handle Lists/Tuples
+        if isinstance(actual, (list, tuple)) and isinstance(expected, (list, tuple)):
+            if not actual and not expected: return 1.0
+            if not actual or not expected: return 0.0
+            
+            # (Weights: 30% length, 70% elements)
+            len_sim = 1.0 if len(actual) == len(expected) else max(0, 1.0 - abs(len(actual) - len(expected)) / len(expected))
+            
+            elem_sim_sum = 0
+            min_len = min(len(actual), len(expected))
+            for i in range(min_len):
+                elem_sim_sum += _calculate_similarity(actual[i], expected[i])
+            
+            elem_sim = elem_sim_sum / len(expected)
+            return (len_sim * 0.3) + (elem_sim * 0.7)
+
+        # Normalized string comparison
+        if str(actual).lower().strip() == str(expected).lower().strip():
+            return 1.0
+            
+    except Exception:
         pass
     
-    return False
+    return 0.0

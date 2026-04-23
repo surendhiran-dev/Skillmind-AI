@@ -20,7 +20,7 @@
             -webkit-appearance: none !important;
             background-color: #1a1a2e !important;
             color: #ffffff !important;
-            border: 1px solid rgba(255,255,255,0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
             padding: 8px 32px 8px 12px !important;
             border-radius: 8px !important;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23ffffff' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E") !important;
@@ -28,25 +28,31 @@
             background-position: right 10px center !important;
             cursor: pointer !important;
         }
+
         #codingLanguageSelector option {
             background-color: #0f172a !important;
             color: #ffffff !important;
         }
-        select, input, textarea {
+
+        select,
+        textarea {
             background-color: #0f1322 !important;
             color: #f8fafc !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+    <noscript>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+            rel="stylesheet">
+    </noscript>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js" defer></script>
-    <!-- ARIA SVG Avatar — no Three.js dependency needed -->
 </head>
 
 <body>
@@ -76,9 +82,9 @@
                 </div>
                 <form action="#" id="loginFormInner">
                     <div class="field-wrapper slide-element">
-                        <input type="text" id="loginUsername" autocomplete="off" required>
-                        <label for="loginUsername">Username</label>
-                        <i class="fa-solid fa-user"></i>
+                        <input type="email" id="loginEmail" autocomplete="off" required>
+                        <label for="loginEmail">Email</label>
+                        <i class="fa-solid fa-envelope"></i>
                     </div>
 
                     <div class="field-wrapper slide-element">
@@ -126,6 +132,7 @@
                         <input type="text" id="resetOTP" name="resetOTP" autocomplete="off" maxlength="6" required>
                         <label for="resetOTP">OTP Code</label>
                         <i class="fa-solid fa-key"></i>
+                        <div class="otp-status-icon" id="resetOtpStatus"></div>
                         <div id="resetOtpTimer"
                             style="position: absolute; right: 40px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--primary); font-weight: 600;">
                         </div>
@@ -188,16 +195,13 @@
                     </div>
 
                     <div class="field-wrapper slide-element" id="otpWrapper">
-                        <input type="text" id="regOTP" autocomplete="off" required>
+                        <input type="text" id="regOTP" autocomplete="off" maxlength="6" required>
                         <label for="regOTP">OTP Code</label>
-                        <i class="fa-solid fa-key"></i>
-                        <div id="otpTimerWrap"
-                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px;">
-                            <span id="otpCountdown"
-                                style="color: #00d4ff; font-size: 12px; font-weight: 600; display: none;">60s</span>
-                            <button type="button" id="sendOtpBtn"
-                                style="background: var(--primary); border: none; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; display: none;">Send
-                                OTP</button>
+                        <i class="fa-solid fa-key" id="regOtpIcon"></i>
+                        <div class="otp-status-icon" id="regOtpStatus"></div>
+                        <div id="otpTimerWrap" class="otp-timer-container">
+                            <span id="otpCountdown" class="otp-timer-text">60s</span>
+                            <button type="button" id="sendOtpBtn" class="otp-btn">Send OTP</button>
                         </div>
                     </div>
 
@@ -693,13 +697,17 @@
                             placeholder="Type your answer here..."></textarea>
                         <div class="quiz-actions">
                             <button class="btn-secondary" id="skipQuestionBtn">Skip</button>
-                            <button class="btn-primary" id="nextQuestionBtn" style="pointer-events: auto !important; opacity: 1 !important; z-index: 1000 !important; cursor: pointer !important;">Submit Answer</button>
+                            <button class="btn-primary" id="nextQuestionBtn"
+                                style="pointer-events: auto !important; opacity: 1 !important; z-index: 1000 !important; cursor: pointer !important;">Submit
+                                Answer</button>
                         </div>
                     </div>
                 </div>
                 <div id="quizResult" class="card quiz-result-card hidden">
                     <div class="result-icon">
-                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-award">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--accent)"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="feather feather-award">
                             <circle cx="12" cy="8" r="7"></circle>
                             <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
                         </svg>
@@ -707,7 +715,8 @@
                     <h2>Quiz Complete!</h2>
                     <div class="result-score" id="quizScoreDisplay">--</div>
                     <p id="quizFeedback"></p>
-                    <button class="btn-primary" id="gotoCodingBtn" onclick="showPage('coding')">Go to Coding Assessment</button>
+                    <button class="btn-primary" id="gotoCodingBtn" onclick="showPage('coding')">Go to Coding
+                        Assessment</button>
                 </div>
             </div>
         </div>
@@ -738,12 +747,15 @@
                 <!-- Header Stats -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
                     <div style="display:flex; align-items:center; gap: 8rem;">
-                        <span id="codingProgress" style="font-weight: 600; color: var(--text-dim);">Question 1 / 6</span>
-                        
+                        <span id="codingProgress" style="font-weight: 600; color: var(--text-dim);">Question 1 /
+                            6</span>
+
                         <!-- Timer moved to marked position (towards left) -->
-                        <div id="codingTimerContainer" style="display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.05); padding: 0.5rem 1.2rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                        <div id="codingTimerContainer"
+                            style="display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.05); padding: 0.5rem 1.2rem; border-radius: 12px; border: 1px solid var(--glass-border);">
                             <i class="fas fa-clock" style="color: var(--primary); font-size: 0.9rem;"></i>
-                            <span id="codingTimer" style="font-family: 'Fira Code', monospace; font-weight: 700; color: #fff; font-size: 1.1rem; min-width: 60px; text-align: center;">10:00</span>
+                            <span id="codingTimer"
+                                style="font-family: 'Fira Code', monospace; font-weight: 700; color: #fff; font-size: 1.1rem; min-width: 60px; text-align: center;">10:00</span>
                         </div>
                     </div>
 
@@ -849,8 +861,9 @@
                                         style="padding: 4px 8px; font-size: 0.75rem;">Reset</button>
                                 </div>
                             </div>
-                            <textarea id="codeEditor" class="code-editor" spellcheck="false"
-                                style="height: 400px; padding: 1.5rem; font-family: 'Fira Code', 'Courier New', monospace; font-size: 0.95rem; border: none; background: #0d1117; color: #e6edf3;"></textarea>
+                            <div id="codeEditor" class="code-editor"
+                                style="height: 400px; border: none; border-radius: 0 0 12px 12px; overflow: hidden;">
+                            </div>
                         </div>
 
                         <!-- Console Output Card -->
@@ -895,424 +908,713 @@
                 </div>
                 <p id="codingFeedback" style="color:var(--text-muted); margin-bottom:1.5rem;"></p>
                 <div id="codingResultDetails" style="text-align:left; margin-bottom:1.5rem;"></div>
-                <button class="btn-primary" id="gotoInterviewBtn" onclick="showPage('interview')">Go to Personal Interview</button>
+                <button class="btn-primary" id="gotoInterviewBtn" onclick="showPage('interview')">Go to Personal
+                    Interview</button>
             </div>
         </div>
 
         <!-- ── INTERVIEW PAGE (Native Vanilla JS) ── -->
-        <div id="interviewPage" class="page hidden" style="padding:0;overflow:hidden;position:relative;background:#0d0e14;">
+        <div id="interviewPage" class="page hidden"
+            style="padding:0;overflow:hidden;position:relative;background:#0d0e14;">
 
-          <!-- ── PRE-JOIN SCREEN ── -->
-          <div id="iv-prejoin" class="iv-screen iv-prejoin-container">
-            <div id="iv-prejoin-loading" style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
-              <div class="spinner-border text-primary" role="status"></div>
-              <p style="color: #94a3b8; font-weight: 500;">Analyzing your profile...</p>
-            </div>
-
-            <div id="iv-prejoin-content" class="iv-prejoin-card" style="display: none;">
-              <div class="iv-prejoin-header">
-                <h1 class="iv-prejoin-title">Ready to Interview with <span>ARIA?</span></h1>
-                <p class="iv-prejoin-subtitle">
-                  Your AI interviewer has reviewed your profile and is ready to begin. 
-                  Below is your current progress across all evaluation modules.
-                </p>
-              </div>
-
-              <div class="iv-prejoin-grid">
-                <!-- Resume Score -->
-                <div class="iv-stat-card">
-                  <div class="iv-stat-icon"><i class="fas fa-file-alt"></i></div>
-                  <span class="iv-stat-label">Resume</span>
-                  <div id="iv-stat-resume" class="iv-stat-val">--%</div>
-                </div>
-                <!-- Quiz Score -->
-                <div class="iv-stat-card">
-                  <div class="iv-stat-icon"><i class="fas fa-tasks"></i></div>
-                  <span class="iv-stat-label">Quiz</span>
-                  <div id="iv-stat-quiz" class="iv-stat-val">--%</div>
-                </div>
-                <!-- Coding Score -->
-                <div class="iv-stat-card">
-                  <div class="iv-stat-icon"><i class="fas fa-code"></i></div>
-                  <span class="iv-stat-label">Coding</span>
-                  <div id="iv-stat-coding" class="iv-stat-val">--%</div>
-                </div>
-                <!-- Interview Confidence -->
-                <div class="iv-stat-card">
-                  <div class="iv-stat-icon"><i class="fas fa-user-tie"></i></div>
-                  <span class="iv-stat-label">Interview</span>
-                  <div id="iv-stat-interview" class="iv-stat-val">--%</div>
-                </div>
-              </div>
-
-              <div class="iv-skills-wrapper">
-                <h3 style="font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1rem; text-align: center;">Your Key Skills</h3>
-                <div id="iv-skills-display" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem;">
-                  <!-- Skills filled via JS -->
-                </div>
-              </div>
-
-              <div class="iv-info-box">
-                <div class="iv-info-icon"><i class="fas fa-robot"></i></div>
-                <div class="iv-info-text">
-                  ARIA will ask <strong>6 questions</strong> based on your skills and background. 
-                  Ensure your <strong>camera and microphone</strong> are enabled and you are in a <strong>well-lit, quiet environment</strong>. 
-                </div>
-              </div>
-
-              <div class="iv-prejoin-footer">
-                <button id="iv-join-btn" class="iv-join-btn" onclick="Interview.handleJoin()">
-                  <i class="fas fa-play-circle"></i>
-                  Join Interview Now
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- ── INTERVIEW ROOM ── -->
-          <div id="iv-room" class="iv-screen hidden" style="position:relative;display:none;flex-direction:column;height:100%;background:#0d0e14;">
-            <!-- Floating Timer in Right Corner -->
-            <div id="iv-timer" style="position:absolute;top:20px;right:20px;z-index:100;font-family:monospace;font-size:1.1rem;font-weight:900;color:#fff;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);padding:6px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);box-shadow:0 8px 32px rgba(0,0,0,0.4);letter-spacing:1px;display:flex;align-items:center;gap:8px;">
-               <span style="color:#ef4444;font-size:0.7rem;animation:micDotBlink 1s infinite;">●</span>
-               <span>0:00</span>
-            </div>
-
-
-            <!-- Room content -->
-            <main class="iv-main-grid" style="flex:1;overflow:hidden;">
-
-              <!-- LEFT: CANDIDATE PANEL -->
-              <div class="iv-c-panel">
-                <video id="iv-video" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
-                <canvas id="iv-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:20;"></canvas>
-
-                <!-- Emotion Badge -->
-                <div id="iv-emotion-badge" class="iv-emotion-badge" style="display:none;"></div>
-
-                <!-- Person status -->
-                <div id="iv-person-badge" class="iv-person-badge" style="display:none;">
-                  <div class="iv-status-dot-green"></div><span class="iv-status-text-green">1 PERSON ✓</span>
+            <!-- ── PRE-JOIN SCREEN ── -->
+            <div id="iv-prejoin" class="iv-screen iv-prejoin-container">
+                <div id="iv-prejoin-loading"
+                    style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p style="color: #94a3b8; font-weight: 500;">Analyzing your profile...</p>
                 </div>
 
-                <!-- Multi-person warning -->
-                <div id="iv-multi-person-warning" class="iv-multi-warning" style="display:none;">
-                  <div style="font-size:2.5rem;">🚫</div>
-                  <div class="iv-mw-title">Multiple Persons Detected</div>
-                  <div class="iv-mw-sub">Only one candidate allowed.</div>
-                  <div class="iv-mw-badge" id="iv-multi-person-count">2</div> Persons
-                </div>
-
-                <!-- No face warning -->
-                <div id="iv-no-face-warning" class="iv-no-face-warning" style="display:none;">
-                  👁️ Face not visible — please look at the camera
-                </div>
-
-                <!-- ARIA Subtitle bar -->
-                <div id="iv-aria-subtitle" class="iv-subtitle iv-subtitle-aria" style="display:none; height:auto; min-height:48px; align-items:flex-start; padding:12px;">
-                  <span class="iv-subtitle-tag">ARIA</span>
-                  <span class="iv-subtitle-text" style="white-space:normal; line-height:1.5; flex:1;"></span>
-                </div>
-
-                <!-- Progress dots -->
-                <div class="iv-progress-wrap" id="iv-progress-wrap">
-                  <div id="iv-progress-dots" class="iv-progress-dots"></div>
-                  <span id="iv-question-label" class="iv-question-label">Question 1/6</span>
-                </div>
-
-                <!-- Error message -->
-                <div id="iv-error-msg" class="iv-error-msg" style="display:none;"></div>
-
-                <!-- Candidate label -->
-                <div class="iv-you-badge">
-                  <span class="iv-status-dot-green"></span>You
-                </div>
-
-                <!-- Mic Listening Status Indicator -->
-                <div id="iv-mic-status" style="display:none;position:absolute;bottom:54px;left:12px;z-index:40;align-items:center;gap:8px;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);padding:5px 12px;border-radius:20px;font-size:0.9rem;font-weight:700;color:#22c55e;letter-spacing:0.05em;border:1px solid rgba(34,197,94,0.3);">
-                  <span id="iv-mic-status-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;animation:micDotBlink 1s ease-in-out infinite;"></span>
-                  <span id="iv-mic-status-text">🎤 ARIA Listening...</span>
-                </div>
-
-
-                <!-- Audio Waveform Bars -->
-                <div id="iv-audio-wave" style="display:none;position:absolute;top:64px;right:12px;z-index:40;align-items:flex-end;gap:3px;height:28px;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);padding:6px 10px;border-radius:16px;border:1px solid rgba(26,115,232,0.25);">
-                  <span style="width:4px;background:#1a73e8;border-radius:2px;--d:0.5s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
-                  <span style="width:4px;background:#1a73e8;border-radius:2px;--d:0.7s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
-                  <span style="width:4px;background:#1a73e8;border-radius:2px;--d:0.4s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
-                  <span style="width:4px;background:#4fc3f7;border-radius:2px;--d:0.9s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
-                  <span style="width:4px;background:#1a73e8;border-radius:2px;--d:0.6s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
-                  <span style="width:4px;background:#4fc3f7;border-radius:2px;--d:0.8s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
-                  <span style="width:4px;background:#1a73e8;border-radius:2px;--d:0.55s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
-                </div>
-
-                <!-- Candidate Answer Subtitle (ANS) -->
-                <div class="iv-subtitle iv-subtitle-you" style="display:flex; align-items:flex-start; height:auto; min-height:44px; padding:8px 12px;">
-                  <span class="iv-subtitle-tag iv-tag-you">ANS</span>
-                  <span id="iv-answer-subtitle" class="iv-subtitle-text" style="display:inline-block; vertical-align:middle; white-space:normal; line-height:1.5; flex:1;">
-                    <span id="iv-sub-final" style="color:#ffffff;"></span><span id="iv-sub-interim" style="color:#94a3b8;font-style:italic;"></span><span id="iv-sub-placeholder" style="color:#94a3b8;">Awaiting your response...</span>
-                  </span>
-                </div>
-              </div>
-
-              <!-- RIGHT: ARIA PANEL -->
-              <div class="iv-a-panel">
-                <svg class="iv-a-grid" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><line x1="0" y1="25%" x2="100%" y2="25%" stroke="#4a8ef7" stroke-width=".5"/><line x1="0" y1="50%" x2="100%" y2="50%" stroke="#4a8ef7" stroke-width=".5"/><line x1="0" y1="75%" x2="100%" y2="75%" stroke="#4a8ef7" stroke-width=".5"/><line x1="33%" y1="0" x2="33%" y2="100%" stroke="#4a8ef7" stroke-width=".5"/><line x1="66%" y1="0" x2="66%" y2="100%" stroke="#4a8ef7" stroke-width=".5"/></svg>
-                <div class="iv-a-glow"></div>
-
-                <div class="iv-a-status">
-                  <span class="iv-a-status-dot" id="iv-aria-status-dot"></span>
-                  <span id="iv-aria-status-label" style="color:#1a73e8;">Idle</span>
-                </div>
-
-                <!-- ARIA Avatar SVG inline -->
-                <div style="display:flex;flex-direction:column;align-items:center;gap:1.5rem;position:relative;z-index:2;">
-                  <style>
-                    .av-wrap{position:relative;width:220px;height:220px;display:flex;align-items:center;justify-content:center}
-                    .av-ring{position:absolute;inset:-6px;border-radius:50%;background:conic-gradient(from 0deg,#1a73e8 0%,#0d47a1 22%,#081e50 38%,#1a73e8 52%,#4fc3f7 68%,#1a73e8 100%);padding:3px;animation:spinR 5.5s linear infinite}
-                    .av-ring-in{width:100%;height:100%;border-radius:50%;background:#060a16}
-                    .av-circle{width:210px;height:210px;border-radius:50%;overflow:hidden;position:relative;z-index:2;box-shadow:0 16px 56px rgba(0,0,0,.8)}
-                    @keyframes spinR{to{transform:rotate(360deg)}}
-                    .state-idle{animation:afloat 3.8s ease-in-out infinite}
-                    .state-speaking{animation:aspeak .9s ease-in-out infinite}
-                    .state-thinking{animation:athink 4s cubic-bezier(.4,0,.2,1) infinite;transform-origin:150px 190px}
-                    .state-listening{animation:afloat 3.8s ease-in-out infinite}
-                    @keyframes afloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
-                    @keyframes aspeak{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-                    @keyframes athink{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-8px) rotate(2.8deg)}}
-                    .el{animation:eb 5.5s ease-in-out infinite;transform-origin:118px 122px}
-                    .er{animation:eb 5.5s ease-in-out .12s infinite;transform-origin:182px 122px}
-                    @keyframes eb{0%,85%,100%{transform:scaleY(1)}89%,93%{transform:scaleY(.06)}}
-                    @keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 14px rgba(239,68,68,0)}}
-                    @keyframes barBounce{0%{height:4px}100%{height:22px}}
-                    @keyframes micDotBlink{0%,100%{opacity:1}50%{opacity:.2}}
-                    @keyframes ivSpin{to{transform:rotate(360deg)}}
-                    #iv-tap-mic-btn.mic-active{background:rgba(239,68,68,0.2)!important;border-color:rgba(239,68,68,0.8)!important;color:#f87171!important;animation:micPulse 1.2s ease-in-out infinite}
-                    #iv-tap-mic-btn:disabled,#iv-finish-btn:disabled{opacity:.4!important;cursor:not-allowed!important;animation:none!important}
-                    #iv-finish-btn{transition:opacity .2s,transform .1s}
-                    #iv-finish-btn:not(:disabled):hover{transform:scale(1.03)}
-                    .iv-strength-tag{display:inline-block;padding:4px 10px;border-radius:99px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);color:#22c55e;font-size:0.75rem;font-weight:700;letter-spacing:0.04em;}
-                  </style>
-                  <div class="av-wrap">
-                    <!-- <div class="av-ring"><div class="av-ring-in"></div></div> -->
-                    <div class="av-circle">
-                      <div id="iv-avatar-container" data-size="210" style="width:100%;height:100%;"></div>
+                <div id="iv-prejoin-content" class="iv-prejoin-card" style="display: none;">
+                    <div class="iv-prejoin-header">
+                        <h1 class="iv-prejoin-title">Ready to Interview with <span>ARIA?</span></h1>
+                        <p class="iv-prejoin-subtitle">
+                            Your AI interviewer has reviewed your profile and is ready to begin.
+                            Below is your current progress across all evaluation modules.
+                        </p>
                     </div>
-                  </div>
-                  <div class="iv-aria-label"><span class="iv-aria-label-dot"></span>ARIA · AI HR Interviewer</div>
+
+                    <div class="iv-prejoin-grid">
+                        <!-- Resume Score -->
+                        <div class="iv-stat-card">
+                            <div class="iv-stat-icon"><i class="fas fa-file-alt"></i></div>
+                            <span class="iv-stat-label">Resume</span>
+                            <div id="iv-stat-resume" class="iv-stat-val">--%</div>
+                        </div>
+                        <!-- Quiz Score -->
+                        <div class="iv-stat-card">
+                            <div class="iv-stat-icon"><i class="fas fa-tasks"></i></div>
+                            <span class="iv-stat-label">Quiz</span>
+                            <div id="iv-stat-quiz" class="iv-stat-val">--%</div>
+                        </div>
+                        <!-- Coding Score -->
+                        <div class="iv-stat-card">
+                            <div class="iv-stat-icon"><i class="fas fa-code"></i></div>
+                            <span class="iv-stat-label">Coding</span>
+                            <div id="iv-stat-coding" class="iv-stat-val">--%</div>
+                        </div>
+                        <!-- Interview Confidence -->
+                        <div class="iv-stat-card">
+                            <div class="iv-stat-icon"><i class="fas fa-user-tie"></i></div>
+                            <span class="iv-stat-label">Interview</span>
+                            <div id="iv-stat-interview" class="iv-stat-val">--%</div>
+                        </div>
+                    </div>
+
+                    <div class="iv-skills-wrapper">
+                        <h3
+                            style="font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1rem; text-align: center;">
+                            Your Key Skills</h3>
+                        <div id="iv-skills-display"
+                            style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem;">
+                            <!-- Skills filled via JS -->
+                        </div>
+                    </div>
+
+                    <div class="iv-info-box">
+                        <div class="iv-info-icon"><i class="fas fa-robot"></i></div>
+                        <div class="iv-info-text">
+                            ARIA will ask <strong>6 questions</strong> based on your skills and background.
+                            Ensure your <strong>camera and microphone</strong> are enabled and you are in a
+                            <strong>well-lit, quiet environment</strong>.
+                        </div>
+                    </div>
+
+                    <div class="iv-prejoin-footer">
+                        <button id="iv-join-btn" class="iv-join-btn" onclick="Interview.handleJoin()">
+                            <i class="fas fa-play-circle"></i>
+                            Join Interview Now
+                        </button>
+                    </div>
                 </div>
-              </div>
-            </main>
-
-            <!-- BOTTOM BAR -->
-            <footer class="iv-bbar" style="padding:0 2.5rem;height:72px;display:flex;justify-content:space-between;align-items:center;">
-
-
-              <!-- VOICE CONTROLS: TAP TO ANSWER + FINISH ANSWER -->
-              <div style="display:flex;align-items:center;gap:2rem;">
-
-
-                <!-- TAP TO ANSWER mic button -->
-                <button id="iv-tap-mic-btn" title="Tap to Answer" style="display:flex;align-items:center;gap:10px;padding:0 24px;height:44px;border-radius:22px;border:1.5px solid rgba(26,115,232,0.6);background:rgba(26,115,232,0.15);color:#7bb3f7;font-size:0.95rem;font-weight:800;letter-spacing:0.04em;cursor:pointer;transition:all .2s;white-space:nowrap;">
-                  <span id="iv-tap-mic-icon" style="font-size:1.1rem;"><i class="fas fa-microphone"></i></span>
-                  <span id="iv-tap-mic-label">TAP TO START</span>
-                </button>
-
-
-                <!-- FINISH ANSWER button (hidden until mic active or text typed) -->
-                <!-- FINISH ANSWER button -->
-                <button id="iv-finish-btn" title="Finish Answer" style="display:none;align-items:center;gap:10px;padding:0 24px;height:44px;border-radius:22px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:0.95rem;font-weight:800;letter-spacing:0.04em;cursor:pointer;transition:all .2s;white-space:nowrap;box-shadow:0 4px 12px rgba(34,197,94,0.3);">
-                  <span id="iv-finish-icon"><i class="fas fa-check-circle"></i></span>
-                  <span id="iv-finish-label">FINISH ANSWER</span>
-                  <!-- Spinner (hidden normally) -->
-                  <svg id="iv-finish-spinner" style="display:none;animation:ivSpin 0.8s linear infinite;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                </button>
-
-
-                <!-- Hidden textarea (keeps existing functionality) -->
-                <textarea id="iv-answer-input" class="iv-answer-input" placeholder="Or type here..." rows="1" style="display:none !important;flex:1;min-width:0;max-width:180px;height:34px;padding:6px 10px;resize:none;font-size:0.9rem;"></textarea>
-                <!-- Hidden legacy send btn (kept for JS binding) -->
-                <button id="iv-send-btn" class="iv-send-btn" title="Send Answer" style="display:none;">
-                  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2L15 22 11 13 2 9z"/></svg>
-                </button>
-              </div>
-
-              <!-- Controls: Cam + End -->
-              <div style="display:flex;align-items:center;gap:1.5rem;padding:0 1.5rem;border-right:1px solid rgba(255,255,255,0.07);border-left:1px solid rgba(255,255,255,0.07);height:100%;">
-
-                <button id="iv-mic-btn" class="iv-ctrl-btn iv-btn-active" title="Toggle Mic" style="width:44px;height:44px;font-size:1.1rem;display:flex;align-items:center;justify-content:center;">
-                  <i class="fas fa-microphone"></i>
-                </button>
-                <button id="iv-cam-btn" class="iv-ctrl-btn iv-btn-active" title="Toggle Camera" style="width:44px;height:44px;font-size:1.1rem;display:flex;align-items:center;justify-content:center;">
-                  <i class="fas fa-video"></i>
-                </button>
-                <button id="iv-end-btn" class="iv-end-call-btn" style="height:44px;padding:0 20px;font-size:0.95rem;font-weight:800;display:flex;align-items:center;gap:10px;">
-                  <i class="fas fa-phone-slash"></i> End Call
-                </button>
-              </div>
-
-
-              <!-- Metrics -->
-              <div style="display:flex;align-items:center;gap:1.5rem;padding-left:1rem;">
-
-                <div class="iv-metric">
-                  <div class="iv-metric-lbl">Face Reaction</div>
-                  <div class="iv-metric-val" id="iv-metric-emotion">😐 Neutral</div>
-                </div>
-
-                <div class="iv-metric" style="min-width:88px;">
-                   <div class="iv-metric-lbl">Surrounding Noise</div>
-                   <div class="iv-metric-val" id="iv-noise-score" style="color:#22c55e;">0.0 dB</div>
-                   <div class="iv-metric-bar"><div class="iv-metric-bar-fill" id="iv-noise-bar" style="width:0%; background:#22c55e; transition: width 0.1s linear;"></div></div>
-                </div>
-
-                <div class="iv-metric" style="min-width:88px;">
-                   <div class="iv-metric-lbl">Confidence</div>
-                   <div class="iv-metric-val iv-text-blue" id="iv-confidence-score">85%</div>
-                   <div class="iv-metric-bar"><div class="iv-metric-bar-fill" id="iv-confidence-bar" style="width:85%"></div></div>
-                </div>
-              </div>
-
-              <!-- Status Indicators -->
-              <div style="display:flex;align-items:center;gap:1rem;padding-left:1.5rem;">
-
-                <div class="iv-strike-nav" id="iv-strike-nav-wrap" style="display:none;font-size:0.85rem;color:#ef4444;background:rgba(239,68,68,0.1);padding:4px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.2);">
-                  ⚠️ <span id="iv-strike-count">0</span>/3
-                </div>
-                <div class="iv-rec-badge" style="display:none !important;font-size:0.85rem;padding:3px 8px;border-radius:6px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);display:flex;align-items:center;gap:4px;font-weight:800;">
-                  <span class="iv-rec-dot" style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>REC
-                </div>
-
-              </div>
-            </footer>
-
-            <!-- End Modal -->
-            <div id="iv-end-modal" class="iv-modal-overlay hidden">
-              <div class="iv-modal-card">
-                <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:0.5rem;">⚠️ End Interview?</h3>
-                <p style="font-size:0.85rem;color:#64748b;line-height:1.6;margin-bottom:1.5rem;">Are you sure you want to end? A partial report will be generated.</p>
-                <div style="display:flex;gap:0.75rem;">
-                  <button id="iv-confirm-continue" class="iv-modal-btn iv-modal-btn-secondary">Continue</button>
-                  <button id="iv-confirm-end" class="iv-modal-btn iv-modal-btn-danger">End Call</button>
-                </div>
-              </div>
             </div>
 
-            <!-- Violation Modal -->
-            <div id="iv-violation-modal" class="iv-modal-overlay" style="display:none;background:rgba(0,0,0,0.85);backdrop-filter:blur(16px);">
-              <div class="iv-vbox">
-                <div style="font-size:3rem;" id="iv-violation-icon">🚨</div>
-                <div class="iv-vbox-title" id="iv-violation-title">Violation Detected!</div>
-                <div class="iv-vbox-msg" id="iv-violation-msg"></div>
-                <div class="iv-vbox-strikes">
-                  <div class="iv-strike-dot" id="iv-strike-dot-1"></div>
-                  <div class="iv-strike-dot" id="iv-strike-dot-2"></div>
-                  <div class="iv-strike-dot" id="iv-strike-dot-3"></div>
+            <!-- ── INTERVIEW ROOM ── -->
+            <div id="iv-room" class="iv-screen hidden"
+                style="position:relative;display:none;flex-direction:column;height:100%;background:#0d0e14;">
+                <!-- Floating Timer in Right Corner -->
+                <div id="iv-timer"
+                    style="position:absolute;top:20px;right:20px;z-index:100;font-family:monospace;font-size:1.1rem;font-weight:900;color:#fff;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);padding:6px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);box-shadow:0 8px 32px rgba(0,0,0,0.4);letter-spacing:1px;display:flex;align-items:center;gap:8px;">
+                    <span style="color:#ef4444;font-size:0.7rem;animation:micDotBlink 1s infinite;">●</span>
+                    <span>0:00</span>
                 </div>
-                <button id="iv-violation-btn" class="iv-vbox-btn">I Understand</button>
-              </div>
-            </div>
 
-            <!-- Countdown Modal -->
-            <div id="iv-countdown-modal" class="iv-modal-overlay hidden" style="background:rgba(6,10,22,0.92);backdrop-filter:blur(24px);">
-              <div style="display:flex;flex-direction:column;align-items:center;gap:1.5rem;text-align:center;">
-                <div style="position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;">
-                  <svg width="120" height="120" viewBox="0 0 100 100" style="position:absolute;transform:rotate(-90deg);">
-                    <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="6"/>
-                    <circle id="iv-countdown-circle" cx="50" cy="50" r="45" fill="none" stroke="#1a73e8" stroke-width="6" stroke-dasharray="283" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear;"/>
-                  </svg>
-                  <div id="iv-countdown-num" style="font-size:3.5rem;font-weight:900;color:#fff;text-shadow:0 0 20px rgba(26,115,232,0.5);">5</div>
-                </div>
-                <div>
-                  <h3 id="iv-countdown-msg" style="font-size:1.25rem;font-weight:800;margin-bottom:0.5rem;color:#e8eaed;">Brilliant!</h3>
-                  <p style="font-size:0.9rem;color:#94a3b8;font-weight:500;">Moving to next question in a few seconds...</p>
-                </div>
-              </div>
-            </div>
 
-          </div><!-- end #iv-room -->
+                <!-- Room content -->
+                <main class="iv-main-grid" style="flex:1;overflow:hidden;">
 
-          <!-- ── REPORT SCREEN ── -->
-          <div id="iv-report" class="iv-screen hidden" style="display:none;overflow-y:auto;padding:2rem;height:100%;background:#0d0e14;">
-            <div style="max-width:900px;margin:0 auto;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;">
-                <div>
-                  <h1 style="font-size:2rem;font-weight:900;color:#e8eaed;margin:0;">Interview <span style="color:#1a73e8;">Evaluation</span></h1>
-                  <p style="color:#9aa0a6;margin-top:0.25rem;font-size:0.9rem;">ARIA's comprehensive feedback for your performance.</p>
-                </div>
-                <div style="display:flex;align-items:center;gap:1.5rem;">
-                   <span id="iv-redirect-timer" style="font-size:0.85rem;color:#94a3b8;font-weight:600;font-style:italic;"></span>
-                   <button id="iv-rep-back-btn" class="iv-btn-primary">← Back to Dashboard</button>
-                </div>
-              </div>
+                    <!-- LEFT: CANDIDATE PANEL -->
+                    <div class="iv-c-panel">
+                        <video id="iv-video" autoplay muted playsinline
+                            style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+                        <canvas id="iv-canvas"
+                            style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:20;"></canvas>
 
-              <!-- Score + Summary -->
-              <div style="display:grid;grid-template-columns:1fr 2fr;gap:1.5rem;margin-bottom:2rem;">
-                <div class="iv-rep-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;">
-                  <p style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.2em;color:#9aa0a6;">Overall Readiness</p>
-                  <div style="position:relative;width:140px;height:140px;">
-                    <svg width="140" height="140" viewBox="0 0 140 140">
-                      <circle cx="70" cy="70" r="60" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="none"/>
-                      <circle id="iv-rep-circle" cx="70" cy="70" r="60" stroke="#1a73e8" stroke-width="8" fill="none"
-                        stroke-dasharray="440" stroke-dashoffset="440" transform="rotate(-90 70 70)"
-                        style="transition:stroke-dashoffset 2s ease;"/>
-                    </svg>
-                    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-                      <span id="iv-rep-score" style="font-size:2rem;font-weight:900;color:#e8eaed;">—</span>
-                      <span style="font-size:0.6rem;color:#9aa0a6;text-transform:uppercase;font-weight:700;">Score</span>
+                        <!-- Emotion Badge -->
+                        <div id="iv-emotion-badge" class="iv-emotion-badge" style="display:none;"></div>
+
+                        <!-- Person status -->
+                        <div id="iv-person-badge" class="iv-person-badge" style="display:none;">
+                            <div class="iv-status-dot-green"></div><span class="iv-status-text-green">1 PERSON ✓</span>
+                        </div>
+
+                        <!-- Multi-person warning -->
+                        <div id="iv-multi-person-warning" class="iv-multi-warning" style="display:none;">
+                            <div style="font-size:2.5rem;">🚫</div>
+                            <div class="iv-mw-title">Multiple Persons Detected</div>
+                            <div class="iv-mw-sub">Only one candidate allowed.</div>
+                            <div class="iv-mw-badge" id="iv-multi-person-count">2</div> Persons
+                        </div>
+
+                        <!-- No face warning -->
+                        <div id="iv-no-face-warning" class="iv-no-face-warning" style="display:none;">
+                            👁️ Face not visible — please look at the camera
+                        </div>
+
+                        <!-- ARIA Subtitle bar -->
+                        <div id="iv-aria-subtitle" class="iv-subtitle iv-subtitle-aria"
+                            style="display:none; height:auto; min-height:48px; align-items:flex-start; padding:12px;">
+                            <span class="iv-subtitle-tag">ARIA</span>
+                            <span class="iv-subtitle-text" style="white-space:normal; line-height:1.5; flex:1;"></span>
+                        </div>
+
+                        <!-- Progress dots -->
+                        <div class="iv-progress-wrap" id="iv-progress-wrap">
+                            <div id="iv-progress-dots" class="iv-progress-dots"></div>
+                            <span id="iv-question-label" class="iv-question-label">Question 1/6</span>
+                        </div>
+
+                        <!-- Error message -->
+                        <div id="iv-error-msg" class="iv-error-msg" style="display:none;"></div>
+
+                        <!-- Candidate label -->
+                        <div class="iv-you-badge">
+                            <span class="iv-status-dot-green"></span>You
+                        </div>
+
+                        <!-- Mic Listening Status Indicator -->
+                        <div id="iv-mic-status"
+                            style="display:none;position:absolute;bottom:54px;left:12px;z-index:40;align-items:center;gap:8px;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);padding:5px 12px;border-radius:20px;font-size:0.9rem;font-weight:700;color:#22c55e;letter-spacing:0.05em;border:1px solid rgba(34,197,94,0.3);">
+                            <span id="iv-mic-status-dot"
+                                style="width:8px;height:8px;border-radius:50%;background:#22c55e;animation:micDotBlink 1s ease-in-out infinite;"></span>
+                            <span id="iv-mic-status-text">🎤 ARIA Listening...</span>
+                        </div>
+
+
+                        <!-- Audio Waveform Bars -->
+                        <div id="iv-audio-wave"
+                            style="display:none;position:absolute;top:64px;right:12px;z-index:40;align-items:flex-end;gap:3px;height:28px;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);padding:6px 10px;border-radius:16px;border:1px solid rgba(26,115,232,0.25);">
+                            <span
+                                style="width:4px;background:#1a73e8;border-radius:2px;--d:0.5s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
+                            <span
+                                style="width:4px;background:#1a73e8;border-radius:2px;--d:0.7s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
+                            <span
+                                style="width:4px;background:#1a73e8;border-radius:2px;--d:0.4s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
+                            <span
+                                style="width:4px;background:#4fc3f7;border-radius:2px;--d:0.9s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
+                            <span
+                                style="width:4px;background:#1a73e8;border-radius:2px;--d:0.6s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
+                            <span
+                                style="width:4px;background:#4fc3f7;border-radius:2px;--d:0.8s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
+                            <span
+                                style="width:4px;background:#1a73e8;border-radius:2px;--d:0.55s;animation:barBounce var(--d) ease-in-out infinite alternate;"></span>
+                        </div>
+
+                        <!-- Candidate Answer Subtitle (ANS) -->
+                        <div class="iv-subtitle iv-subtitle-you"
+                            style="display:flex; align-items:flex-start; height:auto; min-height:44px; padding:8px 12px;">
+                            <span class="iv-subtitle-tag iv-tag-you">ANS</span>
+                            <span id="iv-answer-subtitle" class="iv-subtitle-text"
+                                style="display:inline-block; vertical-align:middle; white-space:normal; line-height:1.5; flex:1;">
+                                <span id="iv-sub-final" style="color:#ffffff;"></span><span id="iv-sub-interim"
+                                    style="color:#94a3b8;font-style:italic;"></span><span id="iv-sub-placeholder"
+                                    style="color:#94a3b8;">Awaiting your response...</span>
+                            </span>
+                        </div>
                     </div>
-                  </div>
-                  <div style="padding:0.5rem 1rem;background:rgba(255,255,255,0.05);border-radius:2rem;font-size:0.8rem;font-weight:700;color:#e8eaed;" id="iv-rep-readiness">—</div>
-                </div>
-                <div class="iv-rep-card">
-                  <h3 style="font-size:1rem;font-weight:800;margin-bottom:1rem;color:#e8eaed;">🧠 ARIA's Summary</h3>
-                  <p id="iv-rep-summary" style="font-size:0.85rem;color:rgba(255,255,255,0.6);line-height:1.7;"></p>
-                </div>
-              </div>
 
-              <!-- Dimensions -->
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem;">
-                <div class="iv-rep-card">
-                  <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:1.5rem;color:#e8eaed;">📊 Score Breakdown</h3>
-                  <div style="display:flex;flex-direction:column;gap:1.2rem;">
-                    <div>
-                      <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.4rem;"><span style="color:#9aa0a6;font-weight:700;">Behavioral</span><span id="iv-rep-behavioral" style="font-weight:900;font-family:monospace;">—/10</span></div>
-                      <div class="iv-dim-bar"><div id="iv-bar-behavioral" class="iv-dim-fill" style="background:#1a73e8;width:0%;transition:width 1s ease 0.5s;"></div></div>
-                    </div>
-                    <div>
-                      <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.4rem;"><span style="color:#9aa0a6;font-weight:700;">Communication</span><span id="iv-rep-communication" style="font-weight:900;font-family:monospace;">—/10</span></div>
-                      <div class="iv-dim-bar"><div id="iv-bar-communication" class="iv-dim-fill" style="background:#34a853;width:0%;transition:width 1s ease 0.6s;"></div></div>
-                    </div>
-                    <div>
-                      <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.4rem;"><span style="color:#9aa0a6;font-weight:700;">Technical</span><span id="iv-rep-technical" style="font-weight:900;font-family:monospace;">—/10</span></div>
-                      <div class="iv-dim-bar"><div id="iv-bar-technical" class="iv-dim-fill" style="background:#fbbc05;width:0%;transition:width 1s ease 0.7s;"></div></div>
-                    </div>
-                    <div>
-                      <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.4rem;"><span style="color:#9aa0a6;font-weight:700;">Confidence</span><span id="iv-rep-confidence" style="font-weight:900;font-family:monospace;">—/10</span></div>
-                      <div class="iv-dim-bar"><div id="iv-bar-confidence" class="iv-dim-fill" style="background:#ea4335;width:0%;transition:width 1s ease 0.8s;"></div></div>
-                    </div>
-                  </div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:1.5rem;">
-                  <div class="iv-rep-card" style="flex:1;">
-                    <h3 style="font-size:0.75rem;font-weight:800;text-transform:uppercase;letter-spacing:0.15em;color:#22c55e;margin-bottom:1rem;">✅ Key Strengths</h3>
-                    <div id="iv-rep-strengths" style="display:flex;flex-wrap:wrap;gap:0.5rem;"></div>
-                  </div>
-                  <div class="iv-rep-card" style="flex:1;">
-                    <h3 style="font-size:0.75rem;font-weight:800;text-transform:uppercase;letter-spacing:0.15em;color:#1a73e8;margin-bottom:1rem;">🎯 Recommendation</h3>
-                    <div id="iv-rep-recommendation" style="font-size:0.85rem;color:rgba(255,255,255,0.85);line-height:1.8;"></div>
-                  </div>
-                </div>
-              </div>
+                    <!-- RIGHT: ARIA PANEL -->
+                    <div class="iv-a-panel">
+                        <svg class="iv-a-grid" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+                            <line x1="0" y1="25%" x2="100%" y2="25%" stroke="#4a8ef7" stroke-width=".5" />
+                            <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#4a8ef7" stroke-width=".5" />
+                            <line x1="0" y1="75%" x2="100%" y2="75%" stroke="#4a8ef7" stroke-width=".5" />
+                            <line x1="33%" y1="0" x2="33%" y2="100%" stroke="#4a8ef7" stroke-width=".5" />
+                            <line x1="66%" y1="0" x2="66%" y2="100%" stroke="#4a8ef7" stroke-width=".5" />
+                        </svg>
+                        <div class="iv-a-glow"></div>
 
-              <!-- QA Log -->
-              <div class="iv-rep-card" style="padding:0;overflow:hidden;margin-bottom:2rem;">
-                <div style="padding:1.5rem;border-bottom:1px solid rgba(255,255,255,0.05);">
-                  <h3 style="font-size:1rem;font-weight:800;color:#e8eaed;margin:0;">Detailed Question Log</h3>
+                        <div class="iv-a-status">
+                            <span class="iv-a-status-dot" id="iv-aria-status-dot"></span>
+                            <span id="iv-aria-status-label" style="color:#1a73e8;">Idle</span>
+                        </div>
+
+                        <!-- ARIA Avatar SVG inline -->
+                        <div
+                            style="display:flex;flex-direction:column;align-items:center;gap:1.5rem;position:relative;z-index:2;">
+                            <style>
+                                .av-wrap {
+                                    position: relative;
+                                    width: 220px;
+                                    height: 220px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center
+                                }
+
+                                .av-ring {
+                                    position: absolute;
+                                    inset: -6px;
+                                    border-radius: 50%;
+                                    background: conic-gradient(from 0deg, #1a73e8 0%, #0d47a1 22%, #081e50 38%, #1a73e8 52%, #4fc3f7 68%, #1a73e8 100%);
+                                    padding: 3px;
+                                    animation: spinR 5.5s linear infinite
+                                }
+
+                                .av-ring-in {
+                                    width: 100%;
+                                    height: 100%;
+                                    border-radius: 50%;
+                                    background: #060a16
+                                }
+
+                                .av-circle {
+                                    width: 210px;
+                                    height: 210px;
+                                    border-radius: 50%;
+                                    overflow: hidden;
+                                    position: relative;
+                                    z-index: 2;
+                                    box-shadow: 0 16px 56px rgba(0, 0, 0, .8)
+                                }
+
+                                @keyframes spinR {
+                                    to {
+                                        transform: rotate(360deg)
+                                    }
+                                }
+
+                                .state-idle {
+                                    animation: afloat 3.8s ease-in-out infinite
+                                }
+
+                                .state-speaking {
+                                    animation: aspeak .9s ease-in-out infinite
+                                }
+
+                                .state-thinking {
+                                    animation: athink 4s cubic-bezier(.4, 0, .2, 1) infinite;
+                                    transform-origin: 150px 190px
+                                }
+
+                                .state-listening {
+                                    animation: afloat 3.8s ease-in-out infinite
+                                }
+
+                                @keyframes afloat {
+
+                                    0%,
+                                    100% {
+                                        transform: translateY(0)
+                                    }
+
+                                    50% {
+                                        transform: translateY(-9px)
+                                    }
+                                }
+
+                                @keyframes aspeak {
+
+                                    0%,
+                                    100% {
+                                        transform: translateY(0)
+                                    }
+
+                                    50% {
+                                        transform: translateY(-4px)
+                                    }
+                                }
+
+                                @keyframes athink {
+
+                                    0%,
+                                    100% {
+                                        transform: translateY(0) rotate(0deg)
+                                    }
+
+                                    50% {
+                                        transform: translateY(-8px) rotate(2.8deg)
+                                    }
+                                }
+
+                                .el {
+                                    animation: eb 5.5s ease-in-out infinite;
+                                    transform-origin: 118px 122px
+                                }
+
+                                .er {
+                                    animation: eb 5.5s ease-in-out .12s infinite;
+                                    transform-origin: 182px 122px
+                                }
+
+                                @keyframes eb {
+
+                                    0%,
+                                    85%,
+                                    100% {
+                                        transform: scaleY(1)
+                                    }
+
+                                    89%,
+                                    93% {
+                                        transform: scaleY(.06)
+                                    }
+                                }
+
+                                @keyframes micPulse {
+
+                                    0%,
+                                    100% {
+                                        box-shadow: 0 0 0 0 rgba(239, 68, 68, .5)
+                                    }
+
+                                    50% {
+                                        box-shadow: 0 0 0 14px rgba(239, 68, 68, 0)
+                                    }
+                                }
+
+                                @keyframes barBounce {
+                                    0% {
+                                        height: 4px
+                                    }
+
+                                    100% {
+                                        height: 22px
+                                    }
+                                }
+
+                                @keyframes micDotBlink {
+
+                                    0%,
+                                    100% {
+                                        opacity: 1
+                                    }
+
+                                    50% {
+                                        opacity: .2
+                                    }
+                                }
+
+                                @keyframes ivSpin {
+                                    to {
+                                        transform: rotate(360deg)
+                                    }
+                                }
+
+                                #iv-tap-mic-btn.mic-active {
+                                    background: rgba(239, 68, 68, 0.2) !important;
+                                    border-color: rgba(239, 68, 68, 0.8) !important;
+                                    color: #f87171 !important;
+                                    animation: micPulse 1.2s ease-in-out infinite
+                                }
+
+                                #iv-tap-mic-btn:disabled,
+                                #iv-finish-btn:disabled {
+                                    opacity: .4 !important;
+                                    cursor: not-allowed !important;
+                                    animation: none !important
+                                }
+
+                                #iv-finish-btn {
+                                    transition: opacity .2s, transform .1s
+                                }
+
+                                #iv-finish-btn:not(:disabled):hover {
+                                    transform: scale(1.03)
+                                }
+
+                                .iv-strength-tag {
+                                    display: inline-block;
+                                    padding: 4px 10px;
+                                    border-radius: 99px;
+                                    background: rgba(34, 197, 94, 0.15);
+                                    border: 1px solid rgba(34, 197, 94, 0.3);
+                                    color: #22c55e;
+                                    font-size: 0.75rem;
+                                    font-weight: 700;
+                                    letter-spacing: 0.04em;
+                                }
+                            </style>
+                            <div class="av-wrap">
+                                <!-- <div class="av-ring"><div class="av-ring-in"></div></div> -->
+                                <div class="av-circle">
+                                    <div id="iv-avatar-container" data-size="210" style="width:100%;height:100%;"></div>
+                                </div>
+                            </div>
+                            <div class="iv-aria-label"><span class="iv-aria-label-dot"></span>ARIA · AI HR Interviewer
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- BOTTOM BAR -->
+                <footer class="iv-bbar"
+                    style="padding:0 2.5rem;height:72px;display:flex;justify-content:space-between;align-items:center;">
+
+
+                    <!-- VOICE CONTROLS: TAP TO ANSWER + FINISH ANSWER -->
+                    <div style="display:flex;align-items:center;gap:2rem;">
+
+
+                        <!-- TAP TO ANSWER mic button -->
+                        <button id="iv-tap-mic-btn" title="Tap to Answer"
+                            style="display:flex;align-items:center;gap:10px;padding:0 24px;height:44px;border-radius:22px;border:1.5px solid rgba(26,115,232,0.6);background:rgba(26,115,232,0.15);color:#7bb3f7;font-size:0.95rem;font-weight:800;letter-spacing:0.04em;cursor:pointer;transition:all .2s;white-space:nowrap;">
+                            <span id="iv-tap-mic-icon" style="font-size:1.1rem;"><i
+                                    class="fas fa-microphone"></i></span>
+                            <span id="iv-tap-mic-label">TAP TO START</span>
+                        </button>
+
+
+                        <!-- FINISH ANSWER button (hidden until mic active or text typed) -->
+                        <!-- FINISH ANSWER button -->
+                        <button id="iv-finish-btn" title="Finish Answer"
+                            style="display:none;align-items:center;gap:10px;padding:0 24px;height:44px;border-radius:22px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:0.95rem;font-weight:800;letter-spacing:0.04em;cursor:pointer;transition:all .2s;white-space:nowrap;box-shadow:0 4px 12px rgba(34,197,94,0.3);">
+                            <span id="iv-finish-icon"><i class="fas fa-check-circle"></i></span>
+                            <span id="iv-finish-label">FINISH ANSWER</span>
+                            <!-- Spinner (hidden normally) -->
+                            <svg id="iv-finish-spinner" style="display:none;animation:ivSpin 0.8s linear infinite;"
+                                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="3">
+                                <path
+                                    d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                            </svg>
+                        </button>
+
+
+                        <!-- Hidden textarea (keeps existing functionality) -->
+                        <textarea id="iv-answer-input" class="iv-answer-input" placeholder="Or type here..." rows="1"
+                            style="display:none !important;flex:1;min-width:0;max-width:180px;height:34px;padding:6px 10px;resize:none;font-size:0.9rem;"></textarea>
+                        <!-- Hidden legacy send btn (kept for JS binding) -->
+                        <button id="iv-send-btn" class="iv-send-btn" title="Send Answer" style="display:none;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                                viewBox="0 0 24 24">
+                                <path d="M22 2L11 13M22 2L15 22 11 13 2 9z" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Controls: Cam + End -->
+                    <div
+                        style="display:flex;align-items:center;gap:1.5rem;padding:0 1.5rem;border-right:1px solid rgba(255,255,255,0.07);border-left:1px solid rgba(255,255,255,0.07);height:100%;">
+
+                        <button id="iv-mic-btn" class="iv-ctrl-btn iv-btn-active" title="Toggle Mic"
+                            style="width:44px;height:44px;font-size:1.1rem;display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="iv-cam-btn" class="iv-ctrl-btn iv-btn-active" title="Toggle Camera"
+                            style="width:44px;height:44px;font-size:1.1rem;display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-video"></i>
+                        </button>
+                        <button id="iv-end-btn" class="iv-end-call-btn"
+                            style="height:44px;padding:0 20px;font-size:0.95rem;font-weight:800;display:flex;align-items:center;gap:10px;">
+                            <i class="fas fa-phone-slash"></i> End Call
+                        </button>
+                    </div>
+
+
+                    <!-- Metrics -->
+                    <div style="display:flex;align-items:center;gap:1.5rem;padding-left:1rem;">
+
+                        <div class="iv-metric">
+                            <div class="iv-metric-lbl">Face Reaction</div>
+                            <div class="iv-metric-val" id="iv-metric-emotion">😐 Neutral</div>
+                        </div>
+
+                        <div class="iv-metric" style="min-width:88px;">
+                            <div class="iv-metric-lbl">Surrounding Noise</div>
+                            <div class="iv-metric-val" id="iv-noise-score" style="color:#22c55e;">0.0 dB</div>
+                            <div class="iv-metric-bar">
+                                <div class="iv-metric-bar-fill" id="iv-noise-bar"
+                                    style="width:0%; background:#22c55e; transition: width 0.1s linear;"></div>
+                            </div>
+                        </div>
+
+                        <div class="iv-metric" style="min-width:88px;">
+                            <div class="iv-metric-lbl">Confidence</div>
+                            <div class="iv-metric-val iv-text-blue" id="iv-confidence-score">85%</div>
+                            <div class="iv-metric-bar">
+                                <div class="iv-metric-bar-fill" id="iv-confidence-bar" style="width:85%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Indicators -->
+                    <div style="display:flex;align-items:center;gap:1rem;padding-left:1.5rem;">
+
+                        <div class="iv-strike-nav" id="iv-strike-nav-wrap"
+                            style="display:none;font-size:0.85rem;color:#ef4444;background:rgba(239,68,68,0.1);padding:4px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.2);">
+                            ⚠️ <span id="iv-strike-count">0</span>/3
+                        </div>
+                        <div class="iv-rec-badge"
+                            style="display:none !important;font-size:0.85rem;padding:3px 8px;border-radius:6px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);display:flex;align-items:center;gap:4px;font-weight:800;">
+                            <span class="iv-rec-dot"
+                                style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>REC
+                        </div>
+
+                    </div>
+                </footer>
+
+                <!-- End Modal -->
+                <div id="iv-end-modal" class="iv-modal-overlay hidden">
+                    <div class="iv-modal-card">
+                        <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:0.5rem;">⚠️ End Interview?</h3>
+                        <p style="font-size:0.85rem;color:#64748b;line-height:1.6;margin-bottom:1.5rem;">Are you sure
+                            you want to end? A partial report will be generated.</p>
+                        <div style="display:flex;gap:0.75rem;">
+                            <button id="iv-confirm-continue"
+                                class="iv-modal-btn iv-modal-btn-secondary">Continue</button>
+                            <button id="iv-confirm-end" class="iv-modal-btn iv-modal-btn-danger">End Call</button>
+                        </div>
+                    </div>
                 </div>
-                <div id="iv-qa-log"></div>
-              </div>
-            </div>
-          </div><!-- end #iv-report -->
+
+                <!-- Violation Modal -->
+                <div id="iv-violation-modal" class="iv-modal-overlay"
+                    style="display:none;background:rgba(0,0,0,0.85);backdrop-filter:blur(16px);">
+                    <div class="iv-vbox">
+                        <div style="font-size:3rem;" id="iv-violation-icon">🚨</div>
+                        <div class="iv-vbox-title" id="iv-violation-title">Violation Detected!</div>
+                        <div class="iv-vbox-msg" id="iv-violation-msg"></div>
+                        <div class="iv-vbox-strikes">
+                            <div class="iv-strike-dot" id="iv-strike-dot-1"></div>
+                            <div class="iv-strike-dot" id="iv-strike-dot-2"></div>
+                            <div class="iv-strike-dot" id="iv-strike-dot-3"></div>
+                        </div>
+                        <button id="iv-violation-btn" class="iv-vbox-btn">I Understand</button>
+                    </div>
+                </div>
+
+                <!-- Countdown Modal -->
+                <div id="iv-countdown-modal" class="iv-modal-overlay hidden"
+                    style="background:rgba(6,10,22,0.92);backdrop-filter:blur(24px);">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:1.5rem;text-align:center;">
+                        <div
+                            style="position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;">
+                            <svg width="120" height="120" viewBox="0 0 100 100"
+                                style="position:absolute;transform:rotate(-90deg);">
+                                <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.05)"
+                                    stroke-width="6" />
+                                <circle id="iv-countdown-circle" cx="50" cy="50" r="45" fill="none" stroke="#1a73e8"
+                                    stroke-width="6" stroke-dasharray="283" stroke-dashoffset="0"
+                                    style="transition:stroke-dashoffset 1s linear;" />
+                            </svg>
+                            <div id="iv-countdown-num"
+                                style="font-size:3.5rem;font-weight:900;color:#fff;text-shadow:0 0 20px rgba(26,115,232,0.5);">
+                                5</div>
+                        </div>
+                        <div>
+                            <h3 id="iv-countdown-msg"
+                                style="font-size:1.25rem;font-weight:800;margin-bottom:0.5rem;color:#e8eaed;">Brilliant!
+                            </h3>
+                            <p style="font-size:0.9rem;color:#94a3b8;font-weight:500;">Moving to next question in a few
+                                seconds...</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- end #iv-room -->
+
+            <!-- ── REPORT SCREEN ── -->
+            <div id="iv-report" class="iv-screen hidden"
+                style="display:none;overflow-y:auto;padding:2rem;height:100%;background:#0d0e14;">
+                <div style="max-width:900px;margin:0 auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;">
+                        <div>
+                            <h1 style="font-size:2rem;font-weight:900;color:#e8eaed;margin:0;">Interview <span
+                                    style="color:#1a73e8;">Evaluation</span></h1>
+                            <p style="color:#9aa0a6;margin-top:0.25rem;font-size:0.9rem;">ARIA's comprehensive feedback
+                                for your performance.</p>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:1.5rem;">
+                            <span id="iv-redirect-timer"
+                                style="font-size:0.85rem;color:#94a3b8;font-weight:600;font-style:italic;"></span>
+                            <button id="iv-rep-back-btn" class="iv-btn-primary">← Back to Dashboard</button>
+                        </div>
+                    </div>
+
+                    <!-- Score + Summary -->
+                    <div style="display:grid;grid-template-columns:1fr 2fr;gap:1.5rem;margin-bottom:2rem;">
+                        <div class="iv-rep-card"
+                            style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;">
+                            <p
+                                style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.2em;color:#9aa0a6;">
+                                Overall Readiness</p>
+                            <div style="position:relative;width:140px;height:140px;">
+                                <svg width="140" height="140" viewBox="0 0 140 140">
+                                    <circle cx="70" cy="70" r="60" stroke="rgba(255,255,255,0.05)" stroke-width="8"
+                                        fill="none" />
+                                    <circle id="iv-rep-circle" cx="70" cy="70" r="60" stroke="#1a73e8" stroke-width="8"
+                                        fill="none" stroke-dasharray="440" stroke-dashoffset="440"
+                                        transform="rotate(-90 70 70)" style="transition:stroke-dashoffset 2s ease;" />
+                                </svg>
+                                <div
+                                    style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                                    <span id="iv-rep-score"
+                                        style="font-size:2rem;font-weight:900;color:#e8eaed;">—</span>
+                                    <span
+                                        style="font-size:0.6rem;color:#9aa0a6;text-transform:uppercase;font-weight:700;">Score</span>
+                                </div>
+                            </div>
+                            <div style="padding:0.5rem 1rem;background:rgba(255,255,255,0.05);border-radius:2rem;font-size:0.8rem;font-weight:700;color:#e8eaed;"
+                                id="iv-rep-readiness">—</div>
+                        </div>
+                        <div class="iv-rep-card">
+                            <h3 style="font-size:1rem;font-weight:800;margin-bottom:1rem;color:#e8eaed;">🧠 ARIA's
+                                Summary</h3>
+                            <p id="iv-rep-summary"
+                                style="font-size:0.85rem;color:rgba(255,255,255,0.6);line-height:1.7;"></p>
+                        </div>
+                    </div>
+
+                    <!-- Dimensions -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem;">
+                        <div class="iv-rep-card">
+                            <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:1.5rem;color:#e8eaed;">📊 Score
+                                Breakdown</h3>
+                            <div style="display:flex;flex-direction:column;gap:1.2rem;">
+                                <div>
+                                    <div
+                                        style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.4rem;">
+                                        <span style="color:#9aa0a6;font-weight:700;">Behavioral</span><span
+                                            id="iv-rep-behavioral"
+                                            style="font-weight:900;font-family:monospace;">—/10</span></div>
+                                    <div class="iv-dim-bar">
+                                        <div id="iv-bar-behavioral" class="iv-dim-fill"
+                                            style="background:#1a73e8;width:0%;transition:width 1s ease 0.5s;"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div
+                                        style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.4rem;">
+                                        <span style="color:#9aa0a6;font-weight:700;">Communication</span><span
+                                            id="iv-rep-communication"
+                                            style="font-weight:900;font-family:monospace;">—/10</span></div>
+                                    <div class="iv-dim-bar">
+                                        <div id="iv-bar-communication" class="iv-dim-fill"
+                                            style="background:#34a853;width:0%;transition:width 1s ease 0.6s;"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div
+                                        style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.4rem;">
+                                        <span style="color:#9aa0a6;font-weight:700;">Technical</span><span
+                                            id="iv-rep-technical"
+                                            style="font-weight:900;font-family:monospace;">—/10</span></div>
+                                    <div class="iv-dim-bar">
+                                        <div id="iv-bar-technical" class="iv-dim-fill"
+                                            style="background:#fbbc05;width:0%;transition:width 1s ease 0.7s;"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div
+                                        style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.4rem;">
+                                        <span style="color:#9aa0a6;font-weight:700;">Confidence</span><span
+                                            id="iv-rep-confidence"
+                                            style="font-weight:900;font-family:monospace;">—/10</span></div>
+                                    <div class="iv-dim-bar">
+                                        <div id="iv-bar-confidence" class="iv-dim-fill"
+                                            style="background:#ea4335;width:0%;transition:width 1s ease 0.8s;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:1.5rem;">
+                            <div class="iv-rep-card" style="flex:1;">
+                                <h3
+                                    style="font-size:0.75rem;font-weight:800;text-transform:uppercase;letter-spacing:0.15em;color:#22c55e;margin-bottom:1rem;">
+                                    ✅ Key Strengths</h3>
+                                <div id="iv-rep-strengths" style="display:flex;flex-wrap:wrap;gap:0.5rem;"></div>
+                            </div>
+                            <div class="iv-rep-card" style="flex:1;">
+                                <h3
+                                    style="font-size:0.75rem;font-weight:800;text-transform:uppercase;letter-spacing:0.15em;color:#1a73e8;margin-bottom:1rem;">
+                                    🎯 Recommendation</h3>
+                                <div id="iv-rep-recommendation"
+                                    style="font-size:0.85rem;color:rgba(255,255,255,0.85);line-height:1.8;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- QA Log -->
+                    <div class="iv-rep-card" style="padding:0;overflow:hidden;margin-bottom:2rem;">
+                        <div style="padding:1.5rem;border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <h3 style="font-size:1rem;font-weight:800;color:#e8eaed;margin:0;">Detailed Question Log
+                            </h3>
+                        </div>
+                        <div id="iv-qa-log"></div>
+                    </div>
+                </div>
+            </div><!-- end #iv-report -->
 
         </div><!-- end #interviewPage -->
     </section>
@@ -1333,15 +1635,17 @@
     <!-- Unified Settings Modal -->
     <div id="unifiedSettingsModal" class="modal-overlay hidden" style="backdrop-filter: blur(10px);">
         <div class="settings-modal" style="background: var(--bg-card); position: relative; border-radius: 24px;">
-            
-            <button class="close-modal" id="closeUnifiedSettings" style="position: absolute; top: 25px; right: 25px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 50%; width: 40px; height: 40px; color: #fff; font-size: 1.2rem; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; transition: 0.3s;">
+
+            <button class="close-modal" id="closeUnifiedSettings"
+                style="position: absolute; top: 25px; right: 25px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 50%; width: 40px; height: 40px; color: #fff; font-size: 1.2rem; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; transition: 0.3s;">
                 <i class="fa-solid fa-xmark"></i>
             </button>
 
             <!-- Sidebar -->
             <div class="settings-sidebar">
                 <div style="padding: 0 0.5rem; margin-bottom: 1.5rem;">
-                    <h2 style="font-size: 1.4rem; color: #fff; font-weight: 800; display: flex; align-items: center; gap: 10px;">
+                    <h2
+                        style="font-size: 1.4rem; color: #fff; font-weight: 800; display: flex; align-items: center; gap: 10px;">
                         <i class="fa-solid fa-gear" style="color: #6366f1;"></i> Settings
                     </h2>
                 </div>
@@ -1359,32 +1663,44 @@
                 <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--glass-border);">
                     <button id="sidebarSignOut" class="signOutButton signOutButton--light">
                         <svg class="doorway" viewBox="0 0 100 100">
-                          <path d="M93.4 86.3H58.6c-1.9 0-3.4-1.5-3.4-3.4V17.1c0-1.9 1.5-3.4 3.4-3.4h34.8c1.9 0 3.4 1.5 3.4 3.4v65.8c0 1.9-1.5 3.4-3.4 3.4z" />
-                          <path class="bang" d="M40.5 43.7L26.6 31.4l-2.5 6.7zM41.9 50.4l-19.5-4-1.4 6.3zM40 57.4l-17.7 3.9 3.9 5.7z" />
+                            <path
+                                d="M93.4 86.3H58.6c-1.9 0-3.4-1.5-3.4-3.4V17.1c0-1.9 1.5-3.4 3.4-3.4h34.8c1.9 0 3.4 1.5 3.4 3.4v65.8c0 1.9-1.5 3.4-3.4 3.4z" />
+                            <path class="bang"
+                                d="M40.5 43.7L26.6 31.4l-2.5 6.7zM41.9 50.4l-19.5-4-1.4 6.3zM40 57.4l-17.7 3.9 3.9 5.7z" />
                         </svg>
                         <svg class="figure" viewBox="0 0 100 100">
-                          <circle cx="52.1" cy="32.4" r="6.4" />
-                          <path d="M50.7 62.8c-1.2 2.5-3.6 5-7.2 4-3.2-.9-4.9-3.5-4-7.8.7-3.4 3.1-13.8 4.1-15.8 1.7-3.4 1.6-4.6 7-3.7 4.3.7 4.6 2.5 4.3 5.4-.4 3.7-2.8 15.1-4.2 17.9z" />
-                          <g class="arm1">
-                            <path d="M55.5 56.5l-6-9.5c-1-1.5-.6-3.5.9-4.4 1.5-1 3.7-1.1 4.6.4l6.1 10c1 1.5.3 3.5-1.1 4.4-1.5.9-3.5.5-4.5-.9z" />
-                            <path class="wrist1" d="M69.4 59.9L58.1 58c-1.7-.3-2.9-1.9-2.6-3.7.3-1.7 1.9-2.9 3.7-2.6l11.4 1.9c1.7.3 2.9 1.9 2.6 3.7-.4 1.7-2 2.9-3.8 2.6z" />
-                          </g>
-                          <g class="arm2">
-                            <path d="M34.2 43.6L45 40.3c1.7-.6 3.5.3 4 2 .6 1.7-.3 4-2 4.5l-10.8 2.8c-1.7.6-3.5-.3-4-2-.6-1.6.3-3.4 2-4z" />
-                            <path class="wrist2" d="M27.1 56.2L32 45.7c.7-1.6 2.6-2.3 4.2-1.6 1.6.7 2.3 2.6 1.6 4.2L33 58.8c-.7 1.6-2.6 2.3-4.2 1.6-1.7-.7-2.4-2.6-1.7-4.2z" />
-                          </g>
-                          <g class="leg1">
-                            <path d="M52.1 73.2s-7-5.7-7.9-6.5c-.9-.9-1.2-3.5-.1-4.9 1.1-1.4 3.8-1.9 5.2-.9l7.9 7c1.4 1.1 1.7 3.5.7 4.9-1.1 1.4-4.4 1.5-5.8.4z" />
-                            <path class="calf1" d="M52.6 84.4l-1-12.8c-.1-1.9 1.5-3.6 3.5-3.7 2-.1 3.7 1.4 3.8 3.4l1 12.8c.1 1.9-1.5 3.6-3.5 3.7-2 0-3.7-1.5-3.8-3.4z" />
-                          </g>
-                          <g class="leg2">
-                            <path d="M37.8 72.7s1.3-10.2 1.6-11.4 2.4-2.8 4.1-2.6c1.7.2 3.6 2.3 3.4 4l-1.8 11.1c-.2 1.7-1.7 3.3-3.4 3.1-1.8-.2-4.1-2.4-3.9-4.2z" />
-                            <path class="calf2" d="M29.5 82.3l9.6-10.9c1.3-1.4 3.6-1.5 5.1-.1 1.5 1.4.4 4.9-.9 6.3l-8.5 9.6c-1.3 1.4-3.6 1.5-5.1.1-1.4-1.3-1.5-3.5-.2-5z" />
-                          </g>
+                            <circle cx="52.1" cy="32.4" r="6.4" />
+                            <path
+                                d="M50.7 62.8c-1.2 2.5-3.6 5-7.2 4-3.2-.9-4.9-3.5-4-7.8.7-3.4 3.1-13.8 4.1-15.8 1.7-3.4 1.6-4.6 7-3.7 4.3.7 4.6 2.5 4.3 5.4-.4 3.7-2.8 15.1-4.2 17.9z" />
+                            <g class="arm1">
+                                <path
+                                    d="M55.5 56.5l-6-9.5c-1-1.5-.6-3.5.9-4.4 1.5-1 3.7-1.1 4.6.4l6.1 10c1 1.5.3 3.5-1.1 4.4-1.5.9-3.5.5-4.5-.9z" />
+                                <path class="wrist1"
+                                    d="M69.4 59.9L58.1 58c-1.7-.3-2.9-1.9-2.6-3.7.3-1.7 1.9-2.9 3.7-2.6l11.4 1.9c1.7.3 2.9 1.9 2.6 3.7-.4 1.7-2 2.9-3.8 2.6z" />
+                            </g>
+                            <g class="arm2">
+                                <path
+                                    d="M34.2 43.6L45 40.3c1.7-.6 3.5.3 4 2 .6 1.7-.3 4-2 4.5l-10.8 2.8c-1.7.6-3.5-.3-4-2-.6-1.6.3-3.4 2-4z" />
+                                <path class="wrist2"
+                                    d="M27.1 56.2L32 45.7c.7-1.6 2.6-2.3 4.2-1.6 1.6.7 2.3 2.6 1.6 4.2L33 58.8c-.7 1.6-2.6 2.3-4.2 1.6-1.7-.7-2.4-2.6-1.7-4.2z" />
+                            </g>
+                            <g class="leg1">
+                                <path
+                                    d="M52.1 73.2s-7-5.7-7.9-6.5c-.9-.9-1.2-3.5-.1-4.9 1.1-1.4 3.8-1.9 5.2-.9l7.9 7c1.4 1.1 1.7 3.5.7 4.9-1.1 1.4-4.4 1.5-5.8.4z" />
+                                <path class="calf1"
+                                    d="M52.6 84.4l-1-12.8c-.1-1.9 1.5-3.6 3.5-3.7 2-.1 3.7 1.4 3.8 3.4l1 12.8c.1 1.9-1.5 3.6-3.5 3.7-2 0-3.7-1.5-3.8-3.4z" />
+                            </g>
+                            <g class="leg2">
+                                <path
+                                    d="M37.8 72.7s1.3-10.2 1.6-11.4 2.4-2.8 4.1-2.6c1.7.2 3.6 2.3 3.4 4l-1.8 11.1c-.2 1.7-1.7 3.3-3.4 3.1-1.8-.2-4.1-2.4-3.9-4.2z" />
+                                <path class="calf2"
+                                    d="M29.5 82.3l9.6-10.9c1.3-1.4 3.6-1.5 5.1-.1 1.5 1.4.4 4.9-.9 6.3l-8.5 9.6c-1.3 1.4-3.6 1.5-5.1.1-1.4-1.3-1.5-3.5-.2-5z" />
+                            </g>
                         </svg>
                         <svg class="door" viewBox="0 0 100 100">
-                          <path d="M93.4 86.3H58.6c-1.9 0-3.4-1.5-3.4-3.4V17.1c0-1.9 1.5-3.4 3.4-3.4h34.8c1.9 0 3.4 1.5 3.4 3.4v65.8c0 1.9-1.5 3.4-3.4 3.4z" />
-                          <circle cx="66" cy="50" r="3.7" />
+                            <path
+                                d="M93.4 86.3H58.6c-1.9 0-3.4-1.5-3.4-3.4V17.1c0-1.9 1.5-3.4 3.4-3.4h34.8c1.9 0 3.4 1.5 3.4 3.4v65.8c0 1.9-1.5 3.4-3.4 3.4z" />
+                            <circle cx="66" cy="50" r="3.7" />
                         </svg>
                         <span class="button-text">Sign Out</span>
                     </button>
@@ -1393,7 +1709,7 @@
 
             <!-- Content Area -->
             <div class="settings-content">
-                
+
                 <!-- Profile Content -->
                 <div id="profileSection" class="settings-section active">
                     <div class="profile-header">
@@ -1409,7 +1725,7 @@
                             <input type="file" id="avatarUploadInput" accept="image/*" style="display: none;">
                         </div>
                     </div>
-                    
+
                     <form id="profileFormInner" class="profile-form">
                         <div class="form-grid">
                             <div class="form-group full-width">
@@ -1418,60 +1734,103 @@
                             </div>
                             <div class="form-group full-width">
                                 <label>Email Address</label>
-                                <input type="email" id="profileEmail" disabled style="opacity: 0.7; cursor: not-allowed; border-color: rgba(255,255,255,0.05);">
+                                <input type="email" id="profileEmail" disabled
+                                    style="opacity: 0.7; cursor: not-allowed; border-color: rgba(255,255,255,0.05);">
                             </div>
                             <div class="form-group full-width">
                                 <label>Phone Number</label>
                                 <div class="phone-input-wrap">
                                     <select id="profileCountryCode" class="phone-select">
-                                        <option value="+1" data-code="US" data-len="10" data-format="10 digits">🇺🇸 +1 (USA)</option>
-                                        <option value="+1" data-code="CA" data-len="10" data-format="10 digits">🇨🇦 +1 (Canada)</option>
-                                        <option value="+44" data-code="GB" data-len="10" data-format="10 digits">🇬🇧 +44 (UK)</option>
-                                        <option value="+91" data-code="IN" data-len="10" data-format="10 digits" selected>🇮🇳 +91 (India)</option>
-                                        <option value="+61" data-code="AU" data-len="9" data-format="9 digits">🇦🇺 +61 (Australia)</option>
-                                        <option value="+81" data-code="JP" data-len="10" data-format="10 digits">🇯🇵 +81 (Japan)</option>
-                                        <option value="+86" data-code="CN" data-len="11" data-format="11 digits">🇨🇳 +86 (China)</option>
-                                        <option value="+49" data-code="DE" data-len="10" data-format="10-11 digits">🇩🇪 +49 (Germany)</option>
-                                        <option value="+33" data-code="FR" data-len="9" data-format="9 digits">🇫🇷 +33 (France)</option>
-                                        <option value="+55" data-code="BR" data-len="11" data-format="10-11 digits">🇧🇷 +55 (Brazil)</option>
-                                        <option value="+65" data-code="SG" data-len="8" data-format="8 digits">🇸🇬 +65 (Singapore)</option>
-                                        <option value="+971" data-code="AE" data-len="9" data-format="9 digits">🇦🇪 +971 (UAE)</option>
-                                        <option value="+966" data-code="SA" data-len="9" data-format="9 digits">🇸🇦 +966 (Saudi Arabia)</option>
-                                        <option value="+7" data-code="RU" data-len="10" data-format="10 digits">🇷🇺 +7 (Russia)</option>
-                                        <option value="+39" data-code="IT" data-len="10" data-format="10 digits">🇮🇹 +39 (Italy)</option>
-                                        <option value="+34" data-code="ES" data-len="9" data-format="9 digits">🇪🇸 +34 (Spain)</option>
-                                        <option value="+52" data-code="MX" data-len="10" data-format="10 digits">🇲🇽 +52 (Mexico)</option>
-                                        <option value="+27" data-code="ZA" data-len="9" data-format="9 digits">🇿🇦 +27 (South Africa)</option>
-                                        <option value="+82" data-code="KR" data-len="10" data-format="10 digits">🇰🇷 +82 (South Korea)</option>
-                                        <option value="+62" data-code="ID" data-len="10" data-format="10 digits">🇮🇩 +62 (Indonesia)</option>
-                                        <option value="+60" data-code="MY" data-len="9" data-format="9 digits">🇲🇾 +60 (Malaysia)</option>
-                                        <option value="+66" data-code="TH" data-len="9" data-format="9 digits">🇹🇭 +66 (Thailand)</option>
-                                        <option value="+84" data-code="VN" data-len="9" data-format="9 digits">🇻🇳 +84 (Vietnam)</option>
-                                        <option value="+92" data-code="PK" data-len="10" data-format="10 digits">🇵🇰 +92 (Pakistan)</option>
-                                        <option value="+880" data-code="BD" data-len="10" data-format="10 digits">🇧🇩 +880 (Bangladesh)</option>
-                                        <option value="+94" data-code="LK" data-len="9" data-format="9 digits">🇱🇰 +94 (Sri Lanka)</option>
-                                        <option value="+977" data-code="NP" data-len="10" data-format="10 digits">🇳🇵 +977 (Nepal)</option>
-                                        <option value="+90" data-code="TR" data-len="10" data-format="10 digits">🇹🇷 +90 (Turkey)</option>
-                                        <option value="+20" data-code="EG" data-len="10" data-format="10 digits">🇪🇬 +20 (Egypt)</option>
-                                        <option value="+234" data-code="NG" data-len="10" data-format="10 digits">🇳🇬 +234 (Nigeria)</option>
-                                        <option value="+254" data-code="KE" data-len="9" data-format="9 digits">🇰🇪 +254 (Kenya)</option>
-                                        <option value="+54" data-code="AR" data-len="10" data-format="10 digits">🇦🇷 +54 (Argentina)</option>
-                                        <option value="+64" data-code="NZ" data-len="9" data-format="9 digits">🇳🇿 +64 (New Zealand)</option>
-                                        <option value="+63" data-code="PH" data-len="10" data-format="10 digits">🇵🇭 +63 (Philippines)</option>
-                                        <option value="+31" data-code="NL" data-len="9" data-format="9 digits">🇳🇱 +31 (Netherlands)</option>
-                                        <option value="+41" data-code="CH" data-len="9" data-format="9 digits">🇨🇭 +41 (Switzerland)</option>
-                                        <option value="+46" data-code="SE" data-len="9" data-format="9 digits">🇸🇪 +46 (Sweden)</option>
-                                        <option value="+351" data-code="PT" data-len="9" data-format="9 digits">🇵🇹 +351 (Portugal)</option>
-                                        <option value="+30" data-code="GR" data-len="10" data-format="10 digits">🇬🇷 +30 (Greece)</option>
-                                        <option value="+48" data-code="PL" data-len="9" data-format="9 digits">🇵🇱 +48 (Poland)</option>
-                                        <option value="+353" data-code="IE" data-len="9" data-format="9 digits">🇮🇪 +353 (Ireland)</option>
+                                        <option value="+1" data-code="US" data-len="10" data-format="10 digits">🇺🇸 +1
+                                            (USA)</option>
+                                        <option value="+1" data-code="CA" data-len="10" data-format="10 digits">🇨🇦 +1
+                                            (Canada)</option>
+                                        <option value="+44" data-code="GB" data-len="10" data-format="10 digits">🇬🇧
+                                            +44 (UK)</option>
+                                        <option value="+91" data-code="IN" data-len="10" data-format="10 digits"
+                                            selected>🇮🇳 +91 (India)</option>
+                                        <option value="+61" data-code="AU" data-len="9" data-format="9 digits">🇦🇺 +61
+                                            (Australia)</option>
+                                        <option value="+81" data-code="JP" data-len="10" data-format="10 digits">🇯🇵
+                                            +81 (Japan)</option>
+                                        <option value="+86" data-code="CN" data-len="11" data-format="11 digits">🇨🇳
+                                            +86 (China)</option>
+                                        <option value="+49" data-code="DE" data-len="10" data-format="10-11 digits">🇩🇪
+                                            +49 (Germany)</option>
+                                        <option value="+33" data-code="FR" data-len="9" data-format="9 digits">🇫🇷 +33
+                                            (France)</option>
+                                        <option value="+55" data-code="BR" data-len="11" data-format="10-11 digits">🇧🇷
+                                            +55 (Brazil)</option>
+                                        <option value="+65" data-code="SG" data-len="8" data-format="8 digits">🇸🇬 +65
+                                            (Singapore)</option>
+                                        <option value="+971" data-code="AE" data-len="9" data-format="9 digits">🇦🇪
+                                            +971 (UAE)</option>
+                                        <option value="+966" data-code="SA" data-len="9" data-format="9 digits">🇸🇦
+                                            +966 (Saudi Arabia)</option>
+                                        <option value="+7" data-code="RU" data-len="10" data-format="10 digits">🇷🇺 +7
+                                            (Russia)</option>
+                                        <option value="+39" data-code="IT" data-len="10" data-format="10 digits">🇮🇹
+                                            +39 (Italy)</option>
+                                        <option value="+34" data-code="ES" data-len="9" data-format="9 digits">🇪🇸 +34
+                                            (Spain)</option>
+                                        <option value="+52" data-code="MX" data-len="10" data-format="10 digits">🇲🇽
+                                            +52 (Mexico)</option>
+                                        <option value="+27" data-code="ZA" data-len="9" data-format="9 digits">🇿🇦 +27
+                                            (South Africa)</option>
+                                        <option value="+82" data-code="KR" data-len="10" data-format="10 digits">🇰🇷
+                                            +82 (South Korea)</option>
+                                        <option value="+62" data-code="ID" data-len="10" data-format="10 digits">🇮🇩
+                                            +62 (Indonesia)</option>
+                                        <option value="+60" data-code="MY" data-len="9" data-format="9 digits">🇲🇾 +60
+                                            (Malaysia)</option>
+                                        <option value="+66" data-code="TH" data-len="9" data-format="9 digits">🇹🇭 +66
+                                            (Thailand)</option>
+                                        <option value="+84" data-code="VN" data-len="9" data-format="9 digits">🇻🇳 +84
+                                            (Vietnam)</option>
+                                        <option value="+92" data-code="PK" data-len="10" data-format="10 digits">🇵🇰
+                                            +92 (Pakistan)</option>
+                                        <option value="+880" data-code="BD" data-len="10" data-format="10 digits">🇧🇩
+                                            +880 (Bangladesh)</option>
+                                        <option value="+94" data-code="LK" data-len="9" data-format="9 digits">🇱🇰 +94
+                                            (Sri Lanka)</option>
+                                        <option value="+977" data-code="NP" data-len="10" data-format="10 digits">🇳🇵
+                                            +977 (Nepal)</option>
+                                        <option value="+90" data-code="TR" data-len="10" data-format="10 digits">🇹🇷
+                                            +90 (Turkey)</option>
+                                        <option value="+20" data-code="EG" data-len="10" data-format="10 digits">🇪🇬
+                                            +20 (Egypt)</option>
+                                        <option value="+234" data-code="NG" data-len="10" data-format="10 digits">🇳🇬
+                                            +234 (Nigeria)</option>
+                                        <option value="+254" data-code="KE" data-len="9" data-format="9 digits">🇰🇪
+                                            +254 (Kenya)</option>
+                                        <option value="+54" data-code="AR" data-len="10" data-format="10 digits">🇦🇷
+                                            +54 (Argentina)</option>
+                                        <option value="+64" data-code="NZ" data-len="9" data-format="9 digits">🇳🇿 +64
+                                            (New Zealand)</option>
+                                        <option value="+63" data-code="PH" data-len="10" data-format="10 digits">🇵🇭
+                                            +63 (Philippines)</option>
+                                        <option value="+31" data-code="NL" data-len="9" data-format="9 digits">🇳🇱 +31
+                                            (Netherlands)</option>
+                                        <option value="+41" data-code="CH" data-len="9" data-format="9 digits">🇨🇭 +41
+                                            (Switzerland)</option>
+                                        <option value="+46" data-code="SE" data-len="9" data-format="9 digits">🇸🇪 +46
+                                            (Sweden)</option>
+                                        <option value="+351" data-code="PT" data-len="9" data-format="9 digits">🇵🇹
+                                            +351 (Portugal)</option>
+                                        <option value="+30" data-code="GR" data-len="10" data-format="10 digits">🇬🇷
+                                            +30 (Greece)</option>
+                                        <option value="+48" data-code="PL" data-len="9" data-format="9 digits">🇵🇱 +48
+                                            (Poland)</option>
+                                        <option value="+353" data-code="IE" data-len="9" data-format="9 digits">🇮🇪
+                                            +353 (Ireland)</option>
                                     </select>
                                     <input type="tel" id="profilePhone" placeholder="Enter phone number">
                                 </div>
                             </div>
                             <div class="form-group full-width">
                                 <label>Professional Bio</label>
-                                <textarea id="profileBio" rows="4" placeholder="Briefly describe your skills and career objectives..."></textarea>
+                                <textarea id="profileBio" rows="4"
+                                    placeholder="Briefly describe your skills and career objectives..."></textarea>
                             </div>
                         </div>
                         <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
@@ -1483,20 +1842,28 @@
                 <!-- History Content -->
                 <div id="historySection" class="settings-section hidden">
                     <div class="section-header">
-                        <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">Assessment <span style="color: var(--primary);">History</span></h1>
+                        <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">Assessment <span
+                                style="color: var(--primary);">History</span></h1>
                         <p style="color: var(--text-muted); margin-bottom: 2rem;">Track your technical performance</p>
                     </div>
-                    
-                    <div class="history-tabs-container" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; gap: 1rem; flex-wrap: wrap;">
+
+                    <div class="history-tabs-container"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; gap: 1rem; flex-wrap: wrap;">
                         <div class="history-tabs" style="display: flex; gap: 0.5rem;">
-                            <button class="btn-tab active" data-history-tab="resume" style="padding: 8px 16px; border-radius: 20px; background: transparent; border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;">Resume</button>
-                            <button class="btn-tab" data-history-tab="quizzes" style="padding: 8px 16px; border-radius: 20px; background: transparent; border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;">Quizzes</button>
-                            <button class="btn-tab" data-history-tab="coding" style="padding: 8px 16px; border-radius: 20px; background: transparent; border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;">Coding</button>
-                            <button class="btn-tab" data-history-tab="interview" style="padding: 8px 16px; border-radius: 20px; background: transparent; border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;">Interview</button>
+                            <button class="btn-tab active" data-history-tab="resume"
+                                style="padding: 8px 16px; border-radius: 20px; background: transparent; border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;">Resume</button>
+                            <button class="btn-tab" data-history-tab="quizzes"
+                                style="padding: 8px 16px; border-radius: 20px; background: transparent; border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;">Quizzes</button>
+                            <button class="btn-tab" data-history-tab="coding"
+                                style="padding: 8px 16px; border-radius: 20px; background: transparent; border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;">Coding</button>
+                            <button class="btn-tab" data-history-tab="interview"
+                                style="padding: 8px 16px; border-radius: 20px; background: transparent; border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;">Interview</button>
                         </div>
-                        <div class="history-sort-wrap" style="display: flex; align-items: center; gap: 0.8rem; background: var(--glass); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                        <div class="history-sort-wrap"
+                            style="display: flex; align-items: center; gap: 0.8rem; background: var(--glass); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
                             <i class="fas fa-sort-amount-down"></i>
-                            <select id="historySort" class="history-sort-select" style="background: transparent; border: none; color: var(--text); font-size: 0.9rem; cursor: pointer; outline: none;">
+                            <select id="historySort" class="history-sort-select"
+                                style="background: transparent; border: none; color: var(--text); font-size: 0.9rem; cursor: pointer; outline: none;">
                                 <option value="date-desc">Latest</option>
                                 <option value="date-asc">Oldest</option>
                                 <option value="score-desc">Highest Score</option>
@@ -1504,7 +1871,7 @@
                             </select>
                         </div>
                     </div>
-                    
+
                     <div id="historyList" class="history-list">
                         <p class="placeholder-text" style="color: var(--text-muted);">No assessment history found.</p>
                     </div>
@@ -1524,7 +1891,8 @@
                             </div>
                         </div>
                         <div class="chat-input-wrapper">
-                            <input type="text" id="supportChatInput" placeholder="Type your question here..." autocomplete="off">
+                            <input type="text" id="supportChatInput" placeholder="Type your question here..."
+                                autocomplete="off">
                             <button id="sendSupportChat">
                                 <i class="fa-solid fa-paper-plane"></i>
                             </button>
@@ -1550,7 +1918,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/dist/face-api.js" defer></script>
     <script src="interview_avatar.js?v=2001"></script>
     <script src="components/interview.js?v=11" defer></script>
-    <script src="script.js?force_update=1050" defer></script>
+    <script src="script.js?force_update=1053" defer></script>
 </body>
 
 

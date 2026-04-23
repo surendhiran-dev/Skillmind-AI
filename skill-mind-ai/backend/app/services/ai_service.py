@@ -491,13 +491,16 @@ def generate_quiz_llm(skills, jd_text=""):
     response_text = call_ai(prompt, system_prompt, module='quiz')
     return clean_json_response(response_text)
 
-def generate_coding_challenges_batch_llm(skills, jd_text="", resume_text="", count=2, difficulty="medium"):
+def generate_coding_challenges_batch_llm(skills, jd_text="", resume_text="", count=2, difficulty="medium", assigned_languages=None):
     """
     Generate multiple unique, real-time coding challenges based on candidate profile and job requirements.
     Ensures problems are NOT static/repeated and relate to candidate experience.
     """
     if not HAS_AI:
         return []
+
+    if not assigned_languages:
+        assigned_languages = ["python"] * count
 
     system_prompt = (
         "You are a technical interview architect at a top-tier tech firm. "
@@ -518,29 +521,36 @@ def generate_coding_challenges_batch_llm(skills, jd_text="", resume_text="", cou
     Generate EXACTLY {count} UNIQUE coding challenges of '{difficulty}' difficulty. 
     Each problem MUST be different from common interview bank questions.
     
+    ASSIGNED LANGUAGES (Fixed):
+    You MUST generate the challenges in these EXACT languages in order: {', '.join(assigned_languages)}.
+    
     OUTPUT REQUIREMENT:
     Return EXACTLY {count} JSON objects in a root array. 
     Failure to provide exactly {count} challenges will result in a system error.
     
+    CRITICAL INSTRUCTION ON LANGUAGE & STARTER CODE:
+    For each challenge, you MUST set the "language" field to the EXACT assigned language from the list above.
+    The "starter_code" MUST be valid, high-quality boilerplate for THAT specific language.
+    For example, if the language is 'java', provide a class-based structure. If 'python', provide a function-based structure.
+    
     CRITICAL INSTRUCTION ON TEST WRAPPER:
     The 'test_wrapper' should be a string template using Python-style format keys.
-    Use '{{input}}' if the problem takes a single argument, or individual keys like '{{records}}' if it takes multiple.
-    Example: "result = my_function({{input}})" or "result = my_function({{records}}=json.loads({{records}}))" 
-    Avoid language-specific class calls if possible (e.g. use "process_data({{input}})" instead of "DataProcessor.process({{input}})").
+    Use '{{input}}' if the problem takes a single argument.
+    Example: "result = my_function({{input}})"
     
     Return the result EXCLUSIVELY as a JSON array of objects with this structure:
     [
       {{
         "title": "Problem Title",
         "difficulty": "{difficulty}",
-        "description": "Scenario-based description...",
-        "language": "python|javascript|java|cpp|go",
-        "tags": ["Scenario", "Production-Ready"],
-        "starter_code": "Boilerplate code...",
+        "description": "Specific, scenario-based description...",
+        "language": "exact language name (e.g., 'python', 'javascript', 'java', 'cpp', 'sql', 'go')",
+        "tags": ["Topic", "Scenario"],
+        "starter_code": "Language-specific boilerplate code...",
         "test_cases": [
           {{"input": "argument_value", "expected": "expected_return_value"}}
         ],
-        "test_wrapper": "Expression to call (e.g., 'result = process_logs({{input}})')"
+        "test_wrapper": "Expression to call (e.g., 'result = process_data({{input}})')"
       }}
     ]
     """

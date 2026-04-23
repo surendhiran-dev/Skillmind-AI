@@ -5,6 +5,7 @@
     // Dynamic API discovery: prefers localhost if currently on localhost, or uses 127.0.0.1 as default
     const API = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'http://127.0.0.1:5000';
     const socket = io('http://127.0.0.1:5000'); // Initialize Socket.IO connection to backend
+    let monacoEditor;
 
     /* ===== State ===== */
     const rawUser = sessionStorage.getItem('user');
@@ -408,14 +409,12 @@
         };
         // -------- USERNAME UTILS --------
         const initUsernameTools = () => {
-            const fields = [$('#loginUsername'), $('#regUsername')];
-            fields.forEach(field => {
-                field?.addEventListener('input', () => {
-                    if (/\d/.test(field.value)) {
-                        showToast('Only letters are allowed in the username!', 'warning');
-                        field.value = field.value.replace(/\d/g, '');
-                    }
-                });
+            const field = $('#regUsername');
+            field?.addEventListener('input', () => {
+                if (/\d/.test(field.value)) {
+                    showToast('Only letters are allowed in the username!', 'warning');
+                    field.value = field.value.replace(/\d/g, '');
+                }
             });
         };
         initUsernameTools();
@@ -426,18 +425,19 @@
             if (e) e.preventDefault();
             const btn = $('#loginFormInner button[type="submit"]');
             const errEl = $('#loginError');
-            const username = $('#loginUsername').value.trim();
+            const email = $('#loginEmail').value.trim();
             const password = $('#loginPassword').value.trim();
 
             errEl.classList.add('hidden');
-            if (!username || !password) {
-                errEl.textContent = 'Please enter both username and password';
+            if (!email || !password) {
+                errEl.textContent = 'Please enter both email and password';
                 errEl.classList.remove('hidden');
                 return;
             }
 
-            if (username.length < 3) {
-                errEl.textContent = 'Username must be at least 3 characters long';
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                errEl.textContent = 'Please enter a valid email address';
                 errEl.classList.remove('hidden');
                 return;
             }
@@ -450,7 +450,7 @@
             try {
                 const data = await api('/api/auth/login', {
                     method: 'POST',
-                    body: { username, password }
+                    body: { email, password }
                 });
                 state.token = data.token;
                 state.user = data.user;
@@ -474,6 +474,7 @@
         const regEmail = $('#regEmail');
         const regOTP = $('#regOTP');
         const otpCountdown = $('#otpCountdown');
+        const regOtpIcon = $('#regOtpIcon');
         let otpTimer = null;
 
         const startOtpTimer = (seconds) => {
@@ -489,6 +490,7 @@
                 otpCountdown.textContent = `${timeLeft}s`;
                 if (timeLeft <= 0) {
                     clearInterval(otpTimer);
+                    otpTimer = null; // Fix: Allow resending after timer expires
                     otpCountdown.style.display = 'none';
                     sendOtpBtn.style.display = 'block';
                     sendOtpBtn.textContent = 'Resend';
@@ -523,8 +525,10 @@
         regEmail?.addEventListener('input', () => {
             if (regEmail.value.trim().includes('@')) {
                 sendOtpBtn.style.display = 'block';
+                if (regOtpIcon) regOtpIcon.style.opacity = '0';
             } else {
                 sendOtpBtn.style.display = 'none';
+                if (regOtpIcon) regOtpIcon.style.opacity = '1';
             }
         });
 
@@ -624,6 +628,62 @@
             input.addEventListener('change', () => updateInputState(input));
         });
 
+        // -------- REAL-TIME OTP VALIDATION --------
+        const setupOtpValidation = (inputEl, statusEl, emailSourceEl, onValid) => {
+            if (!inputEl || !statusEl) return;
+
+            inputEl.addEventListener('input', async () => {
+                const val = inputEl.value.trim();
+                const email = emailSourceEl?.value.trim();
+
+                // Enforce numeric only and max 6 digits
+                const sanitized = val.replace(/\D/g, '').substring(0, 6);
+                if (val !== sanitized) {
+                    inputEl.value = sanitized;
+                }
+
+                // Clear status if empty or too short
+                if (sanitized.length < 6) {
+                    statusEl.className = 'otp-status-icon';
+                    return;
+                }
+                
+                if (sanitized.length === 6 && email) {
+                    try {
+                        const res = await api('/api/auth/verify-otp-instant', {
+                            method: 'POST',
+                            body: { email, otp: sanitized }
+                        });
+                        
+                        if (res.valid) {
+                            statusEl.className = 'otp-status-icon valid';
+                            if (onValid) onValid(); // Stop the timer if valid
+                        } else {
+                            statusEl.className = 'otp-status-icon invalid';
+                        }
+                    } catch (err) {
+                        statusEl.className = 'otp-status-icon invalid';
+                    }
+                }
+            });
+        };
+
+        setupOtpValidation($('#regOTP'), $('#regOtpStatus'), $('#regEmail'), () => {
+            if (otpTimer) {
+                clearInterval(otpTimer);
+                otpTimer = null;
+                $('#otpCountdown').style.display = 'none';
+            }
+        });
+        
+        setupOtpValidation($('#resetOTP'), $('#resetOtpStatus'), $('#forgotEmail'), () => {
+            if (resetOtpTimerInterval) {
+                clearInterval(resetOtpTimerInterval);
+                resetOtpTimerInterval = null;
+                $('#resetOtpTimer').classList.add('hidden');
+            }
+        });
+
         $('#forgotPasswordTrigger')?.addEventListener('click', (e) => {
             e.preventDefault();
             loginFormInner.classList.add('hidden');
@@ -709,6 +769,7 @@
                 resetOtpTimerEl.textContent = `${timeLeft}s`;
                 if (timeLeft <= 0) {
                     clearInterval(resetOtpTimerInterval);
+                    resetOtpTimerInterval = null; // Fix: Allow resending after timer expires
                     resetOtpTimerEl.classList.add('hidden');
                     resendResetOtpBtn.classList.remove('hidden');
                 }
@@ -2111,14 +2172,19 @@
 
     /* ===== Coding ===== */
     function initCoding() {
-        $('#startCodingBtn')?.addEventListener('click', startCodingAssessment);
+        $('#startCodingBtn')?.addEventListener('click', () => {
+            loadMonacoEditor(() => {
+                startCodingAssessment();
+            });
+        });
         $('#resetCodeBtn')?.addEventListener('click', () => {
             const p = state.codingChallenges[state.codingIndex];
-            if (p) {
-                $('#codeEditor').value = p.starter_code;
+            if (p && monacoEditor) {
+                monacoEditor.setValue(p.starter_code);
                 $('#codeOutput').classList.add('hidden');
             }
         });
+
 
         $('#runCodeBtn')?.addEventListener('click', () => submitCodeForReview(false));
         $('#submitCodeBtn')?.addEventListener('click', () => submitCodeForReview(true));
@@ -2126,68 +2192,6 @@
             $('#codingResult').classList.add('hidden');
             $('#codingStart').classList.remove('hidden');
         });
-
-        // Language change handler
-        $('#codingLanguageSelector')?.addEventListener('change', (e) => {
-            const lang = e.target.value;
-            const p = state.codingChallenges[state.codingIndex];
-            if (p) {
-                // Warning if editor has content
-                const currentCode = $('#codeEditor').value.trim();
-                const isDirty = currentCode && !currentCode.includes('Write your solution here');
-                
-                if (isDirty) {
-                    if (!confirm('Changing language will reset your current code for this question. Proceed?')) {
-                        e.target.value = state.currentLanguage || 'python';
-                        return;
-                    }
-                }
-                
-                state.currentLanguage = lang;
-                $('#codeEditor').value = getStarterCode(p, lang);
-            }
-        });
-
-        // SMART EDITOR: Tab and Auto-indentation
-        const codeEditor = $('#codeEditor');
-        if (codeEditor) {
-            codeEditor.addEventListener('keydown', (e) => {
-                if (e.key === 'Tab') {
-                    e.preventDefault();
-                    const start = codeEditor.selectionStart;
-                    const end = codeEditor.selectionEnd;
-
-                    // Insert 4 spaces
-                    codeEditor.value = codeEditor.value.substring(0, start) + "    " + codeEditor.value.substring(end);
-
-                    // Put caret at right position
-                    codeEditor.selectionStart = codeEditor.selectionEnd = start + 4;
-                }
-
-                if (e.key === 'Enter') {
-                    // Smart indentation
-                    const start = codeEditor.selectionStart;
-                    const val = codeEditor.value;
-                    const before = val.substring(0, start);
-                    const lines = before.split('\n');
-                    const currentLine = lines[lines.length - 1];
-                    const indentMatch = currentLine.match(/^\s*/);
-                    let indent = indentMatch ? indentMatch[0] : "";
-
-                    // If previous line ends with colon or open brace, add extra indent
-                    if (currentLine.trim().endsWith(':') || currentLine.trim().endsWith('{')) {
-                        indent += "    ";
-                    }
-
-                    if (indent.length > 0) {
-                        e.preventDefault();
-                        const after = val.substring(start);
-                        codeEditor.value = before + "\n" + indent + after;
-                        codeEditor.selectionStart = codeEditor.selectionEnd = start + 1 + indent.length;
-                    }
-                }
-            });
-        }
     }
 
     function getStarterCode(problem, language) {
@@ -2372,21 +2376,28 @@
             hintsWrap?.classList.add('hidden');
         }
 
-        // Auto-select language disabled as per user request
+        // Auto-select language for every question as per user request
+        if (p.language) {
+            state.currentLanguage = p.language;
+            const langSelector = $('#codingLanguageSelector');
+            if (langSelector) langSelector.value = p.language;
+            console.log(`Auto-switched language to: ${p.language}`);
+        }
 
         // Set Code in Editor
-        $('#codeEditor').value = getStarterCode(p, state.currentLanguage || 'python');
+        if (monacoEditor) {
+            monacoEditor.setValue(p.starter_code || getStarterCode(p, state.currentLanguage || 'python'));
+            const langMapping = { 'python': 'python', 'javascript': 'javascript', 'java': 'java', 'cpp': 'cpp', 'c': 'c', 'sql': 'sql' };
+            monaco.editor.setModelLanguage(monacoEditor.getModel(), langMapping[state.currentLanguage] || 'python');
+        }
         $('#codeOutputText').textContent = "";
-
-        // Scroll to top
-        $('#codeEditor').scrollTop = 0;
 
         // Start 10-minute timer for this question
         startCodingTimer();
     }
 
     async function submitCodeForReview(isNext) {
-        const code = $('#codeEditor').value;
+        const code = monacoEditor ? monacoEditor.getValue() : "";
         const outputEl = $('#codeOutputText');
         const outputWrap = $('#codeOutput');
         const p = state.codingChallenges[state.codingIndex];
@@ -2401,47 +2412,118 @@
             });
 
             const marks = data.marks || 0;
+            const testResults = data.test_results || [];
+            const testPassed = testResults.filter(t => t.passed).length;
+            const testTotal = testResults.length;
+            const totalSim = testResults.reduce((acc, t) => acc + (t.similarity || 0), 0);
+            const passPct = testTotal > 0 ? (totalSim / testTotal) * 100 : 0;
+            
+            // Build the Cyber-Terminal UI
+            let html = `
+                <div class="cyber-tabs" id="terminalTabs">
+                    <div class="cyber-tab active" data-tab="console" onclick="switchTermTab('console')">
+                        <i class="fas fa-terminal"></i> CONSOLE LOG
+                    </div>
+                    <div class="cyber-tab" data-tab="marks" onclick="switchTermTab('marks')">
+                        <i class="fas fa-certificate"></i> EXPERT REPORT
+                    </div>
+                </div>
 
-            let html = `<div style="margin-bottom:1rem;">
-                <span style="font-weight:700;">Syntax:</span> ${data.is_valid ? '<span style="color:var(--accent)">✅ Valid</span>' : '<span style="color:var(--danger)">❌ ' + data.syntax_message + '</span>'}<br>
-                <span style="font-weight:700;">Quality Score:</span> ${data.quality_report?.score}/100<br>
-                <span style="font-weight:700;">Test Pass Rate:</span> ${data.test_score}%<br>
-                <span style="font-weight:700; color:var(--accent);">Marks Earned:</span> ${marks} / 5
-            </div>`;
-
-            if (data.test_results && data.test_results.length) {
-                html += `<div style="border-top: 1px solid var(--glass-border); padding-top:1rem;">
-                    <h5 style="margin-bottom:0.5rem;">Test Cases:</h5>
-                    <div style="display:flex; flex-direction:column; gap:0.5rem;">`;
-
-                data.test_results.slice(0, 3).forEach(tc => {
-                    const color = tc.passed ? 'var(--accent)' : 'var(--danger)';
-                    html += `
-                        <div style="font-size:0.85rem; padding:0.8rem; background:rgba(255,255,255,0.02); border-left:3px solid ${color}; border-radius: 4px;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
-                                <strong style="color: ${color};">Test ${tc.test}</strong>
-                                <span style="color:${color}; font-weight:700; text-transform: uppercase;">${tc.passed ? 'PASSED ✓' : 'FAILED ✗'}</span>
-                            </div>
-                            ${!tc.passed ? `
-                                <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px; font-family: monospace; font-size: 0.75rem;">
-                                    <div style="color: var(--text-dim);">Input: <span style="color: #fff;">${tc.input || 'N/A'}</span></div>
-                                    <div style="color: var(--text-dim);">Expected: <span style="color: #4ade80;">${tc.expected || 'N/A'}</span></div>
-                                    <div style="color: var(--text-dim);">Actual: <span style="color: var(--danger);">${tc.actual !== undefined ? tc.actual : 'No output'}</span></div>
-                                    ${tc.error ? `<div style="color: #f87171; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;">Error: ${tc.error}</div>` : ''}
-                                </div>
-                            ` : ''}
+                <div class="cyber-terminal" id="cyberTerminal">
+                    <div class="terminal-header">
+                        <div class="terminal-controls">
+                            <div class="control-dot" style="background:#ff5f56"></div>
+                            <div class="control-dot" style="background:#ffbd2e"></div>
+                            <div class="control-dot" style="background:#27c93f"></div>
                         </div>
-                    `;
-                });
-                if (data.test_results.length > 3) html += `<p style="font-size:0.75rem; color:var(--text-dim);">+ ${data.test_results.length - 3} more tests...</p>`;
-                html += `</div></div>`;
-            }
+                        <div class="terminal-title">SkillMind Debugger v2.0</div>
+                        <div style="font-size:0.7rem; color:var(--text-dim)">${state.currentLanguage.toUpperCase()} EXECUTION</div>
+                    </div>
+                    
+                    <div class="scanline"></div>
+                    
+                    <div class="terminal-body" id="termBody">
+                        <!-- Console Tab Content -->
+                        <div id="termContentConsole">
+                            <div class="terminal-line"><span class="term-info">Initializing environment... done.</span></div>
+                            <div class="terminal-line"><span class="term-info">Injecting user logic... done.</span></div>
+                            <div class="terminal-line"><span class="term-prompt">>>></span> <span class="term-info">Running ${testTotal} test cases...</span></div>
+                            
+                            <div class="test-progress-meter">
+                                <div class="test-progress-fill" style="width:0%" id="termProgress"></div>
+                            </div>
+
+                            <div id="termLogs" style="margin-top:1rem;">
+                                ${testResults.map((tc, i) => `
+                                    <div class="terminal-line">
+                                        <span class="term-prompt">${i+1}></span> 
+                                        ${tc.passed ? '<span class="term-success">[PASS]</span>' : '<span class="term-error">[FAIL]</span>'}
+                                        Case #${i+1}: ${tc.similarity > 0.95 ? 'Matched perfectly' : (tc.similarity > 0.1 ? 'Partial match identified' : 'Logic mismatch')}
+                                    </div>
+                                    ${tc.stdout ? `<div class="terminal-line term-stdout" style="padding-left:1.5rem; opacity:0.8;">${tc.stdout.split('\n').map(l => `<span>| ${l}</span><br>`).join('')}</div>` : ''}
+                                `).join('')}
+
+                                <div class="terminal-line" style="margin-top:1rem; border-top:1px solid rgba(255,255,255,0.05); padding-top:0.5rem;">
+                                    <span class="term-prompt">OUT:</span> 
+                                    <code style="color:var(--accent); font-weight:700;">${testResults.length ? testResults[0].actual : 'NULL'}</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Marks Tab Content (Hidden by default) -->
+                        <div id="termContentMarks" class="hidden">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                                <div>
+                                    <h3 style="color:#fff; font-size:1.1rem; margin-bottom:0.25rem;">Evaluation Finalized</h3>
+                                    <p style="font-size:0.8rem; color:var(--text-dim);">${passPct > 90 ? 'High-quality implementation verified.' : 'Partial implementation detected.'}</p>
+                                </div>
+                                <div class="marks-container-premium">
+                                    <span class="marks-label-large">Mark</span>
+                                    <div class="marks-circle" style="box-shadow: 0 0 20px var(--accent);">${marks}</div>
+                                    <span style="color:var(--text-dim)">/ 5</span>
+                                </div>
+                            </div>
+                            
+                            <div style="padding:1rem; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                                <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.5rem;">Match Verification</div>
+                                <div style="font-size:0.9rem; color:var(--accent); font-weight:700; display:flex; align-items:center; gap:0.5rem;">
+                                    <i class="fas ${passPct > 80 ? 'fa-check-circle' : 'fa-info-circle'}"></i>
+                                    ${passPct > 90 ? 'LOGIC MATCHES QUESTION' : (passPct > 50 ? 'PARTIAL LOGIC MATCH' : 'LOGIC MISMATCH')}
+                                </div>
+                                <div style="margin-top:1rem; font-size:0.8rem; color:var(--text-dim); line-height:1.6;">
+                                    Functionality Coverage: <strong>${Math.round(passPct)}%</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                ${!data.is_valid ? `<div class="error-traceback" style="margin-top:1rem; background:rgba(220,53,69,0.1); border-left:4px solid var(--danger); padding:1rem; border-radius:4px;"><strong>Syntax Error:</strong> ${data.syntax_message}</div>` : ''}
+            `;
 
             outputEl.innerHTML = html;
+            
+            // Script: Animate progress bar
+            setTimeout(() => {
+                const prog = document.getElementById('termProgress');
+                if (prog) prog.style.width = '100%';
+            }, 100);
+
+            // Script: Inject Global Switcher if not exists
+            if (!window.switchTermTab) {
+                window.switchTermTab = (tab) => {
+                    document.querySelectorAll('.cyber-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelector(`.cyber-tab[data-tab="${tab}"]`).classList.add('active');
+                    
+                    document.getElementById('termContentConsole').classList.toggle('hidden', tab !== 'console');
+                    document.getElementById('termContentMarks').classList.toggle('hidden', tab !== 'marks');
+                };
+            }
+
+            outputWrap.scrollTop = 0; // Reset scroll to top of report
 
             if (isNext) {
                 state.codingSubmissions.push({ problem_id: p.id, code, marks });
-                state.codingTotalMarks += marks;
 
                 if (state.codingIndex < state.codingChallenges.length - 1) {
                     state.codingIndex++;
@@ -3056,8 +3138,83 @@
         initQuiz();
         initCoding();
         initScoring();
+
         initProfile();
     });
+
+    function loadMonacoEditor(callback) {
+        if (typeof monaco !== 'undefined') {
+            if (callback) callback();
+            return;
+        }
+
+        const loader = document.createElement('script');
+        loader.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js';
+        loader.onload = () => {
+            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+            require(['vs/editor/editor.main'], function() {
+                // Define Night Owl theme like image2
+                monaco.editor.defineTheme('night-owl', {
+                    base: 'vs-dark',
+                    inherit: true,
+                    rules: [
+                        { token: 'comment', foreground: '637777', fontStyle: 'italic' },
+                        { token: 'keyword', foreground: 'c792ea' },
+                        { token: 'string', foreground: 'ecc48d' },
+                        { token: 'function', foreground: '82aaff' },
+                        { token: 'number', foreground: 'f78c6c' },
+                        { token: 'operator', foreground: '89ddff' },
+                        { token: 'type', foreground: 'ffcb6b' },
+                    ],
+                    colors: {
+                        'editor.background': '#011627',
+                        'editor.foreground': '#d6deeb',
+                        'editorCursor.foreground': '#7e57c2',
+                        'editor.lineHighlightBackground': '#010e17',
+                        'editorLineNumber.foreground': '#4b6479',
+                        'editor.selectionBackground': '#1d3b53',
+                        'editorIndentGuide.background': '#0b2942',
+                    }
+                });
+
+                const editorDiv = $('#codeEditor');
+                if (editorDiv) {
+                    monacoEditor = monaco.editor.create(editorDiv, {
+                        value: "",
+                        language: 'python',
+                        theme: 'night-owl',
+                        fontSize: 15,
+                        fontFamily: "'Fira Code', monospace",
+                        fontLigatures: true,
+                        automaticLayout: true,
+                        minimap: { enabled: false },
+                        scrollBeyondLastLine: false,
+                        padding: { top: 20 },
+                        roundedSelection: true,
+                        cursorSmoothCaretAnimation: "on"
+                    });
+
+                    // Sync language change
+                    $('#codingLanguageSelector')?.addEventListener('change', (e) => {
+                        const langMapping = {
+                            'python': 'python',
+                            'javascript': 'javascript',
+                            'java': 'java',
+                            'cpp': 'cpp',
+                            'c': 'c',
+                            'sql': 'sql',
+                            'go': 'go'
+                        };
+                        const lang = langMapping[e.target.value] || 'python';
+                        monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
+                        state.currentLanguage = e.target.value;
+                    });
+                }
+                if (callback) callback();
+            });
+        };
+        document.head.appendChild(loader);
+    }
 
     // --- Export to Global Scope for inline onclick handlers ---
     window.showPage = showPage;

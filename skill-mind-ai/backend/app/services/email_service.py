@@ -19,7 +19,7 @@ def send_otp_email(receiver_email, otp_code):
     message["From"] = f"Skill Mind AI <{sender_email}>"
     message["To"] = receiver_email
 
-    text = f"Hello,\n\nYour verification code for Skill Mind AI is: {otp_code}\n\nThis code will expire in 10 minutes. Please do not share this code with anyone.\n\nBest regards,\nSkill Mind AI Team"
+    text = f"Hello,\n\nYour verification code for Skill Mind AI is: {otp_code}\n\nThis code will expire in 1 minute. Please do not share this code with anyone.\n\nBest regards,\nSkill Mind AI Team"
     
     html = f"""
     <!DOCTYPE html>
@@ -88,7 +88,7 @@ def send_otp_email(receiver_email, otp_code):
                     <div class="otp-box">{otp_code}</div>
                 </div>
                 
-                <p style="font-size: 14px; color: #7f8c8d;"><strong>Note:</strong> This verification code is valid for 10 minutes. For your security, please do not share this code with anyone.</p>
+                <p style="font-size: 14px; color: #7f8c8d;"><strong>Note:</strong> This verification code is valid for 1 minute. For your security, please do not share this code with anyone.</p>
                 
                 <p>If you did not request this verification, you can safely ignore this email.</p>
                 
