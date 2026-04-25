@@ -504,59 +504,79 @@ def generate_coding_challenges_batch_llm(skills, jd_text="", resume_text="", cou
 
     system_prompt = (
         "You are a technical interview architect at a top-tier tech firm. "
-        "Create UNIQUE, real-world coding challenges that test practical development skills "
-        "rather than generic algorithms (no FizzBuzz, No Two Sum). "
-        "Focus on domain-specific logic relevant to the candidate's resume."
+        "Create UNIQUE, real-world coding challenges that test practical development skills. "
+        "Focus on domain-specific logic relevant to the candidate's resume. "
+        "You must output ONLY valid, parseable JSON — no explanations, no markdown outside the JSON array."
     )
     
     prompt = f"""
     CANDIDATE PROFILE:
     - Top Skills: {', '.join(skills)}
-    - Relevant Experience/Resume Context: {resume_text[:2000] if resume_text else 'N/A'}
+    - Relevant Experience/Resume Context: {resume_text[:1500] if resume_text else 'N/A'}
     
     JOB DESCRIPTION CONTEXT:
-    {jd_text[:1000] if jd_text else 'Generic Technical Role'}
+    {jd_text[:800] if jd_text else 'Generic Technical Role'}
     
     TASK:
-    Generate EXACTLY {count} UNIQUE coding challenges of '{difficulty}' difficulty. 
-    Each problem MUST be different from common interview bank questions.
+    Generate EXACTLY {count} UNIQUE coding challenges of '{difficulty}' difficulty.
     
     ASSIGNED LANGUAGES (Fixed):
     You MUST generate the challenges in these EXACT languages in order: {', '.join(assigned_languages)}.
     
-    OUTPUT REQUIREMENT:
-    Return EXACTLY {count} JSON objects in a root array. 
-    Failure to provide exactly {count} challenges will result in a system error.
+    ════════════════════════════════════════════════════════════
+    CRITICAL FORMAT RULES — VIOLATIONS WILL BREAK THE SYSTEM:
+    ════════════════════════════════════════════════════════════
     
-    CRITICAL INSTRUCTION ON LANGUAGE & STARTER CODE:
-    For each challenge, you MUST set the "language" field to the EXACT assigned language from the list above.
-    The "starter_code" MUST be valid, high-quality boilerplate for THAT specific language.
-    For example, if the language is 'java', provide a class-based structure. If 'python', provide a function-based structure.
+    RULE 1 — "func_name": You MUST include a "func_name" field with the EXACT name of
+    the function the candidate must implement. This name MUST match the starter_code.
+    Example: "func_name": "process_transactions"
     
-    CRITICAL INSTRUCTION ON TEST WRAPPER:
-    The 'test_wrapper' should be a string template using Python-style format keys.
-    Use '{{input}}' if the problem takes a single argument.
-    Example: "result = my_function({{input}})"
+    RULE 2 — "test_cases[].args": Each test case MUST use "args" (not "input").
+    "args" is a JSON array where each element is one argument to the function, in order.
+    Example for a function (nums, target): {{"args": [[1,2,3], 9], "expected": 1}}
+    Example for a function (text):         {{"args": ["hello world"], "expected": 5}}
+    Example for a function (matrix, k):    {{"args": [[[1,2],[3,4]], 2], "expected": [[3,4],[1,2]]}}
     
-    Return the result EXCLUSIVELY as a JSON array of objects with this structure:
+    RULE 3 — "expected" MUST be a native JSON type: integer, float, boolean, array, or object.
+    NEVER use a string like "true" or "3" when the answer should be true (boolean) or 3 (integer).
+    Correct:   {{"args": [5], "expected": 120}}
+    Incorrect: {{"args": [5], "expected": "120"}}
+    
+    RULE 4 — At least 3 test cases per problem (covering base case, normal case, edge case).
+    
+    RULE 5 — "starter_code" MUST be valid boilerplate for the assigned language.
+    For python: a def block. For javascript: a function block. For java: a class with a method.
+    The starter_code MUST use the exact function/method name from "func_name".
+    
+    ════════════════════════════════════════════════════════════
+    
+    Return EXCLUSIVELY a JSON array of {count} objects with this EXACT structure:
     [
       {{
         "title": "Problem Title",
         "difficulty": "{difficulty}",
-        "description": "Specific, scenario-based description...",
-        "language": "exact language name (e.g., 'python', 'javascript', 'java', 'cpp', 'sql', 'go')",
-        "tags": ["Topic", "Scenario"],
-        "starter_code": "Language-specific boilerplate code...",
+        "description": "Detailed scenario-based problem description with examples...",
+        "language": "exact language (python/javascript/java/go)",
+        "func_name": "exact_function_name",
+        "tags": ["Topic", "Skill"],
+        "starter_code": "Language-specific boilerplate using func_name...",
         "test_cases": [
-          {{"input": "argument_value", "expected": "expected_return_value"}}
-        ],
-        "test_wrapper": "Expression to call (e.g., 'result = process_data({{input}})')"
+          {{"args": [arg1, arg2], "expected": expected_value}},
+          {{"args": [arg1, arg2], "expected": expected_value}},
+          {{"args": [arg1, arg2], "expected": expected_value}}
+        ]
       }}
     ]
     """
     
     response_text = call_ai(prompt, system_prompt, module='coding')
-    return clean_json_response(response_text) or []
+    result = clean_json_response(response_text)
+    if not result:
+        return []
+    # Normalize: ensure it's always a list
+    if isinstance(result, dict):
+        result = [result]
+    return result
 
 def generate_coding_challenge_llm(skills, jd_text=""):
     """Compatibility wrapper for single challenge generation."""

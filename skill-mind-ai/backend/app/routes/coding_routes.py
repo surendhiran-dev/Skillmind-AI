@@ -141,13 +141,12 @@ def submit_code():
         ai_analysis = {"logic_overview": "Evaluation skipped.", "bug_analysis": syntax_msg, "suggestions": ["Fix the syntax error first."]}
         final_score = 0
 
-    # Marks logic: 1-5 scale mapped to final_score
-    # 90+ = 5, 75+ = 4, 55+ = 3, 35+ = 2, 10+ = 1
-    if final_score >= 90: marks = 5
-    elif final_score >= 75: marks = 4
-    elif final_score >= 55: marks = 3
-    elif final_score >= 35: marks = 2
-    elif final_score >= 10: marks = 1
+    # Marks: 1–5 scale based on final_score
+    if final_score >= 85: marks = 5
+    elif final_score >= 65: marks = 4
+    elif final_score >= 45: marks = 3
+    elif final_score >= 25: marks = 2
+    elif final_score >= 5: marks = 1
     else: marks = 0
 
     # Persist the test
@@ -226,25 +225,20 @@ def submit_all_coding():
         else:
             is_valid, _ = check_syntax(code, language)
             quality = evaluate_code_quality(code, language, problem_title=problem_title)
-            test_results, test_score = run_test_cases(code, problem_id, language)
-        
         if is_valid:
-            final_score = round(0.7 * test_score + 0.3 * quality["score"])
+            test_results, test_score, exec_time = run_test_cases(code, problem_id, language)
+            final_score = calculate_comprehensive_score(test_score, quality, ai_analysis=None)
         else:
             final_score = 0
         
-        # Marks calculation with Logic Gate
-        tmp_marks = 0
-        if final_score >= 81: tmp_marks = 5
-        elif final_score >= 61: tmp_marks = 4
-        elif final_score >= 41: tmp_marks = 3
-        elif final_score >= 21: tmp_marks = 2
-        elif final_score > 0: tmp_marks = 1
-        
-        if test_score < 20:
-            marks = min(tmp_marks, 1)
-        else:
-            marks = tmp_marks
+        # Marks: 1–5 scale based on final_score (same thresholds as single-submit)
+        if final_score >= 85: tmp_marks = 5
+        elif final_score >= 65: tmp_marks = 4
+        elif final_score >= 45: tmp_marks = 3
+        elif final_score >= 25: tmp_marks = 2
+        elif final_score >= 5: tmp_marks = 1
+        else: tmp_marks = 0
+        marks = tmp_marks
         
         total_marks += marks
         

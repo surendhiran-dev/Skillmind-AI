@@ -2413,121 +2413,63 @@
 
             const marks = data.marks || 0;
             const testResults = data.test_results || [];
-            const testPassed = testResults.filter(t => t.passed).length;
-            const testTotal = testResults.length;
-            const totalSim = testResults.reduce((acc, t) => acc + (t.similarity || 0), 0);
-            const passPct = testTotal > 0 ? (totalSim / testTotal) * 100 : 0;
-            
-            // Build the Cyber-Terminal UI
-            let html = `
-                <div class="cyber-tabs" id="terminalTabs">
-                    <div class="cyber-tab active" data-tab="console" onclick="switchTermTab('console')">
-                        <i class="fas fa-terminal"></i> CONSOLE LOG
-                    </div>
-                    <div class="cyber-tab" data-tab="marks" onclick="switchTermTab('marks')">
-                        <i class="fas fa-certificate"></i> EXPERT REPORT
-                    </div>
-                </div>
 
-                <div class="cyber-terminal" id="cyberTerminal">
-                    <div class="terminal-header">
-                        <div class="terminal-controls">
-                            <div class="control-dot" style="background:#ff5f56"></div>
-                            <div class="control-dot" style="background:#ffbd2e"></div>
-                            <div class="control-dot" style="background:#27c93f"></div>
-                        </div>
-                        <div class="terminal-title">SkillMind Debugger v2.0</div>
-                        <div style="font-size:0.7rem; color:var(--text-dim)">${state.currentLanguage.toUpperCase()} EXECUTION</div>
-                    </div>
-                    
-                    <div class="scanline"></div>
-                    
-                    <div class="terminal-body" id="termBody">
-                        <!-- Console Tab Content -->
-                        <div id="termContentConsole">
-                            <div class="terminal-line"><span class="term-info">Initializing environment... done.</span></div>
-                            <div class="terminal-line"><span class="term-info">Injecting user logic... done.</span></div>
-                            <div class="terminal-line"><span class="term-prompt">>>></span> <span class="term-info">Running ${testTotal} test cases...</span></div>
-                            
-                            <div class="test-progress-meter">
-                                <div class="test-progress-fill" style="width:0%" id="termProgress"></div>
-                            </div>
-
-                            <div id="termLogs" style="margin-top:1rem;">
-                                ${testResults.map((tc, i) => `
-                                    <div class="terminal-line">
-                                        <span class="term-prompt">${i+1}></span> 
-                                        ${tc.passed ? '<span class="term-success">[PASS]</span>' : '<span class="term-error">[FAIL]</span>'}
-                                        Case #${i+1}: ${tc.similarity > 0.95 ? 'Matched perfectly' : (tc.similarity > 0.1 ? 'Partial match identified' : 'Logic mismatch')}
-                                    </div>
-                                    ${tc.stdout ? `<div class="terminal-line term-stdout" style="padding-left:1.5rem; opacity:0.8;">${tc.stdout.split('\n').map(l => `<span>| ${l}</span><br>`).join('')}</div>` : ''}
-                                `).join('')}
-
-                                <div class="terminal-line" style="margin-top:1rem; border-top:1px solid rgba(255,255,255,0.05); padding-top:0.5rem;">
-                                    <span class="term-prompt">OUT:</span> 
-                                    <code style="color:var(--accent); font-weight:700;">${testResults.length ? testResults[0].actual : 'NULL'}</code>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Marks Tab Content (Hidden by default) -->
-                        <div id="termContentMarks" class="hidden">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-                                <div>
-                                    <h3 style="color:#fff; font-size:1.1rem; margin-bottom:0.25rem;">Evaluation Finalized</h3>
-                                    <p style="font-size:0.8rem; color:var(--text-dim);">${passPct > 90 ? 'High-quality implementation verified.' : 'Partial implementation detected.'}</p>
-                                </div>
-                                <div class="marks-container-premium">
-                                    <span class="marks-label-large">Mark</span>
-                                    <div class="marks-circle" style="box-shadow: 0 0 20px var(--accent);">${marks}</div>
-                                    <span style="color:var(--text-dim)">/ 5</span>
-                                </div>
-                            </div>
-                            
-                            <div style="padding:1rem; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
-                                <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.5rem;">Match Verification</div>
-                                <div style="font-size:0.9rem; color:var(--accent); font-weight:700; display:flex; align-items:center; gap:0.5rem;">
-                                    <i class="fas ${passPct > 80 ? 'fa-check-circle' : 'fa-info-circle'}"></i>
-                                    ${passPct > 90 ? 'LOGIC MATCHES QUESTION' : (passPct > 50 ? 'PARTIAL LOGIC MATCH' : 'LOGIC MISMATCH')}
-                                </div>
-                                <div style="margin-top:1rem; font-size:0.8rem; color:var(--text-dim); line-height:1.6;">
-                                    Functionality Coverage: <strong>${Math.round(passPct)}%</strong>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                ${!data.is_valid ? `<div class="error-traceback" style="margin-top:1rem; background:rgba(220,53,69,0.1); border-left:4px solid var(--danger); padding:1rem; border-radius:4px;"><strong>Syntax Error:</strong> ${data.syntax_message}</div>` : ''}
-            `;
-
-            outputEl.innerHTML = html;
-            
-            // Script: Animate progress bar
-            setTimeout(() => {
-                const prog = document.getElementById('termProgress');
-                if (prog) prog.style.width = '100%';
-            }, 100);
-
-            // Script: Inject Global Switcher if not exists
-            if (!window.switchTermTab) {
-                window.switchTermTab = (tab) => {
-                    document.querySelectorAll('.cyber-tab').forEach(t => t.classList.remove('active'));
-                    document.querySelector(`.cyber-tab[data-tab="${tab}"]`).classList.add('active');
-                    
-                    document.getElementById('termContentConsole').classList.toggle('hidden', tab !== 'console');
-                    document.getElementById('termContentMarks').classList.toggle('hidden', tab !== 'marks');
-                };
+            // Build simplified Console Output
+            let errorLines = [];
+            if (!data.is_valid) {
+                errorLines.push(data.syntax_message);
+            } else {
+                testResults.forEach(t => {
+                    if (!t.passed) {
+                        errorLines.push(t.error || "logical error");
+                    }
+                });
             }
 
-            outputWrap.scrollTop = 0; // Reset scroll to top of report
+            let html = `
+                <div class="simple-console" style="color: #fff; font-family: 'Fira Code', monospace; font-size: 0.9rem; padding: 1.2rem;">
+                    <div style="margin-bottom: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.6rem;">
+                        <div style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 0.4rem; font-weight: 800;">[OUTPUT]</div>
+                        <pre style="margin: 0; color: #10b981; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.5;">${
+                            testResults.length > 0 ? 
+                            (testResults[0].actual.includes('Runtime Error') ? `<span style="color: #ef4444;">${testResults[0].actual}</span>` : testResults[0].actual) : 
+                            (data.syntax_message ? `<span style="color: #ef4444;">${data.syntax_message}</span>` : 'No output')
+                        }</pre>
+                    </div>
+                    
+                    <div style="display: flex; gap: 2rem; margin-bottom: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.6rem;">
+                        <div>
+                            <div style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 0.4rem; font-weight: 800;">[MARK]</div>
+                            <div style="font-size: 1.3rem; font-weight: 800; color: var(--primary);">${marks}/5</div>
+                        </div>
+                        <div>
+                            <div style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 0.4rem; font-weight: 800;">[STATUS]</div>
+                            <div style="font-size: 0.9rem; font-weight: 700; color: ${testResults.every(t => t.passed) ? '#10b981' : '#f59e0b'}">
+                                ${testResults.every(t => t.passed) ? 'PASSED' : (data.is_valid ? 'FAILED' : 'ERROR')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 0.4rem; font-weight: 800;">[ERRORS]</div>
+                        <div style="margin-top: 0.5rem;">
+                            ${errorLines.length > 0 ? 
+                                errorLines.map(err => `<div style="color: #ef4444; margin-bottom: 0.4rem; display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.85rem;"><i class="fas fa-exclamation-triangle" style="margin-top: 3px;"></i><span style="line-height: 1.4;">${err}</span></div>`).join('') : 
+                                '<div style="color: #10b981; display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem;"><i class="fas fa-check-circle"></i><span>All tests passed!</span></div>'
+                            }
+                        </div>
+                    </div>
+                </div>
+            `;
+            outputEl.innerHTML = html;
+            outputWrap.scrollTop = 0;
 
             if (isNext) {
-                state.codingSubmissions.push({ problem_id: p.id, code, marks });
+                state.codingSubmissions[state.codingIndex] = { problem_id: p.id, code, marks, language: state.currentLanguage };
 
                 if (state.codingIndex < state.codingChallenges.length - 1) {
                     state.codingIndex++;
-                    stopCodingTimer(); // Stop before rendering next
+                    stopCodingTimer();
                     setTimeout(() => {
                         renderProblem();
                         showToast(`Problem ${state.codingIndex} submitted.`, 'success');
@@ -2537,10 +2479,12 @@
                     finishCodingAssessment();
                 }
             } else {
-                showToast('Draft tests completed.', 'info');
+                showToast(testResults.every(t => t.passed) ? "All test cases passed!" : "Evaluation complete.", 
+                          testResults.every(t => t.passed) ? "success" : "info");
             }
         } catch (err) {
-            outputEl.textContent = `Error: ${err.message || 'Submission failed'}`;
+            outputEl.innerHTML = `<div style="color:#ef4444; padding:1rem;">Error: ${err.message || 'Submission failed'}</div>`;
+            showToast("Evaluation failed", "error");
         }
     }
 
