@@ -859,7 +859,14 @@ const Interview = (() => {
       // Round to 1 decimal place if it's a number
       const num = typeof val === 'number' ? val : parseFloat(val);
       const rounded = isNaN(num) ? val : Math.round(num * 10) / 10;
-      e.textContent = `${rounded}${typeof rounded === 'number' ? '%' : ''}`; 
+      
+      // If it's a resume/quiz/coding score, it's a percentage in pre-join
+      // Unless it's already a string with %
+      if (typeof rounded === 'number') {
+        e.textContent = `${rounded}%`;
+      } else {
+        e.textContent = rounded;
+      }
     }
   }
 
@@ -1009,10 +1016,10 @@ const Interview = (() => {
     }
 
     text('iv-rep-summary', summary || (readiness === 'Security Terminated' ? '' : ''));
-    text('iv-rep-behavioral', report.behavioral_rating || 0);
-    text('iv-rep-communication', report.communication_rating || 0);
-    text('iv-rep-technical', report.technical_rating || 0);
-    text('iv-rep-confidence', report.confidence_index || 0);
+    text('iv-rep-behavioral', `${report.behavioral_rating || 0}/10`);
+    text('iv-rep-communication', `${report.communication_rating || 0}/10`);
+    text('iv-rep-technical', `${report.technical_rating || 0}/10`);
+    text('iv-rep-confidence', `${report.confidence_index || 0}/10`);
     animateBars(report);
 
     const strEl = el('iv-rep-strengths');
@@ -1063,10 +1070,10 @@ const Interview = (() => {
             }
           }
           
-          text('iv-rep-behavioral', data.report.behavioral_rating || 0);
-          text('iv-rep-communication', data.report.communication_rating || 0);
-          text('iv-rep-technical', data.report.technical_rating || 0);
-          text('iv-rep-confidence', data.report.confidence_index || 0);
+          text('iv-rep-behavioral', `${data.report.behavioral_rating || 0}/10`);
+          text('iv-rep-communication', `${data.report.communication_rating || 0}/10`);
+          text('iv-rep-technical', `${data.report.technical_rating || 0}/10`);
+          text('iv-rep-confidence', `${data.report.confidence_index || 0}/10`);
           animateBars(data.report);
           
           const strEl = el('iv-rep-strengths');

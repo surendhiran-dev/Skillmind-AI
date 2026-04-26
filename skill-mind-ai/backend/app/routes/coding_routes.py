@@ -218,13 +218,19 @@ def submit_all_coding():
         problem = get_problem_by_id(problem_id)
         problem_title = problem["title"] if problem else f"Problem {problem_id}"
 
-        if problem and problem.get('language') != language:
+        # Fix: Use case-insensitive comparison
+        required_lang = problem.get('language', 'python').lower() if problem else 'python'
+        
+        if language != required_lang:
             is_valid = False
             test_score = 0
-            quality = {"score": 0, "feedback": f"Language Mismatch: Question requires {problem.get('language')}"}
+            quality = {"score": 0, "feedback": f"Language Mismatch: Question requires {required_lang}"}
+            ai_analysis = {"logic_overview": "Language Mismatch", "bug_analysis": "N/A", "suggestions": []}
         else:
             is_valid, _ = check_syntax(code, language)
             quality = evaluate_code_quality(code, language, problem_title=problem_title)
+            ai_analysis = None # Single analysis not saved for every item in submit-all to save quota
+            
         if is_valid:
             test_results, test_score, exec_time = run_test_cases(code, problem_id, language)
             final_score = calculate_comprehensive_score(test_score, quality, ai_analysis=None)

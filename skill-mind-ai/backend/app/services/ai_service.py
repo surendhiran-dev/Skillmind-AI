@@ -546,8 +546,24 @@ def generate_coding_challenges_batch_llm(skills, jd_text="", resume_text="", cou
     
     RULE 5 — "starter_code" MUST be valid boilerplate for the assigned language.
     For python: a def block. For javascript: a function block. For java: a class with a method.
+    For c/cpp: a standalone function (NO main()). For sql: a commented template SELECT query.
     The starter_code MUST use the exact function/method name from "func_name".
-    
+
+    RULE 6 — SQL CHALLENGES (language == "sql") SPECIAL FORMAT:
+    - "func_name" should be a descriptive name like "get_high_salary_employees" (no spaces).
+    - "starter_code" should be: "-- Write your SELECT query here\nSELECT ...;"
+    - Each test case MUST have: {{"args": ["<setup_sql_string>"], "expected": [[row1col1, row1col2], ...]}}
+    - args[0] = a single SQL string containing CREATE TABLE + INSERT INTO statements.
+    - expected = a list of rows, where each row is a list of column values.
+    - Example: {{"args": ["CREATE TABLE emp(id INT, name TEXT, sal INT); INSERT INTO emp VALUES(1,'Alice',80000);(2,'Bob',50000);"], "expected": [["Alice", 80000]]}}
+
+    RULE 7 — C/C++ CHALLENGES (language == "c" or "cpp") SPECIAL FORMAT:
+    - Only use SIMPLE return types: int, long, double, float, char*, bool.
+    - Do NOT return arrays or complex structs from the main function.
+    - "func_name" must match exactly the C/C++ function name in starter_code.
+    - test_cases args should be plain scalar/array values matching C parameter types.
+    - Example starter_code for C: "int my_func(int a, int b) {{ // write here\n    return 0;\n}}"
+
     ════════════════════════════════════════════════════════════
     
     Return EXCLUSIVELY a JSON array of {count} objects with this EXACT structure:
@@ -556,7 +572,7 @@ def generate_coding_challenges_batch_llm(skills, jd_text="", resume_text="", cou
         "title": "Problem Title",
         "difficulty": "{difficulty}",
         "description": "Detailed scenario-based problem description with examples...",
-        "language": "exact language (python/javascript/java/go)",
+        "language": "exact language (python/javascript/java/go/sql/c/cpp)",
         "func_name": "exact_function_name",
         "tags": ["Topic", "Skill"],
         "starter_code": "Language-specific boilerplate using func_name...",

@@ -1016,17 +1016,18 @@
 
             if (r) {
                 if (r.marks) {
-                    $('#statResume').textContent = r.marks.resume;
-                    $('#statQuiz').textContent = r.marks.quiz;
-                    $('#statCoding').textContent = r.marks.coding;
-                    $('#statInterview').textContent = r.marks.interview;
-                    $('#statFinal').textContent = r.marks.total;
+                    if ($('#statResume')) $('#statResume').textContent = r.marks.resume;
+                    if ($('#statQuiz')) $('#statQuiz').textContent = r.marks.quiz;
+                    if ($('#statCoding')) $('#statCoding').textContent = r.marks.coding;
+                    if ($('#statInterview')) $('#statInterview').textContent = r.marks.interview;
+                    if ($('#statTotal')) $('#statTotal').textContent = r.marks.total;
                 } else {
-                    // Fallback to percentage if marks not available
-                    $('#statQuiz').textContent = `${(r.quiz_score || 0).toFixed(0)}%`;
-                    $('#statCoding').textContent = `${(r.coding_score || 0).toFixed(0)}%`;
-                    $('#statInterview').textContent = `${(r.interview_score || 0).toFixed(0)}%`;
-                    $('#statFinal').textContent = `${(r.final_score || 0).toFixed(0)}%`;
+                    // Fallback to percentage display if marks object is missing
+                    if ($('#statResume')) $('#statResume').textContent = `${(r.resume_strength || 0).toFixed(0)}%`;
+                    if ($('#statQuiz')) $('#statQuiz').textContent = `${(r.quiz_score || 0).toFixed(0)}%`;
+                    if ($('#statCoding')) $('#statCoding').textContent = `${(r.coding_score || 0).toFixed(0)}%`;
+                    if ($('#statInterview')) $('#statInterview').textContent = `${(r.interview_score || 0).toFixed(0)}%`;
+                    if ($('#statTotal')) $('#statTotal').textContent = `${(r.final_score || 0).toFixed(0)}%`;
                 }
 
                 const bar = $('#readinessBar');
@@ -2494,9 +2495,16 @@
         if (progressBar) progressBar.style.width = '100%';
 
         try {
+            // Fix: Map submissions using their own recorded language, NOT the global state.currentLanguage
+            const submissionsData = state.codingSubmissions.map(s => ({
+                problem_id: s.problem_id,
+                code: s.code,
+                language: s.language || state.currentLanguage // Fallback just in case
+            }));
+
             const data = await api('/api/coding/submit-all', {
                 method: 'POST',
-                body: { submissions: state.codingSubmissions.map(s => ({...s, language: state.currentLanguage})) }
+                body: { submissions: submissionsData }
             });
 
             const marksTotal = data.total_marks || state.codingTotalMarks;

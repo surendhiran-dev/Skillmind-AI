@@ -756,6 +756,24 @@ def _to_java_literal(val, java_type=None):
     return str(val)
 
 
+def _to_c_literal(val, c_type=None):
+    """Convert a Python value to a valid C literal string."""
+    if val is None:
+        return "0"
+    if isinstance(val, bool):
+        return "1" if val else "0"
+    if isinstance(val, int):
+        return str(val)
+    if isinstance(val, float):
+        return str(val)
+    if isinstance(val, str):
+        escaped = val.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+        return f'"{escaped}"'
+    if isinstance(val, list):
+        return "{" + ", ".join(_to_c_literal(x) for x in val) + "}"
+    return str(val)
+
+
 def _run_single_test(code, problem, test_case, test_num, language='python'):
     """Execute one test case safely in a subprocess with full stdout/stderr capture."""
     import re as _re
@@ -986,6 +1004,206 @@ def _run_single_test(code, problem, test_case, test_num, language='python'):
                 capture_output=True, text=True, timeout=15
             )
 
+            lines_out = run_proc.stdout.strip().split('\n')
+            eval_result = None
+            user_stdout = []
+            for line in lines_out:
+                if line.startswith("__RESULT__:"):
+                    raw = line[len("__RESULT__:"):]
+                    try: eval_result = json.loads(raw)
+                    except: eval_result = raw.strip()
+                elif line.strip():
+                    user_stdout.append(line)
+
+            stderr_msg = run_proc.stderr.strip()[:300] if run_proc.stderr else ""
+            actual_val = eval_result if eval_result is not None else "No Output"
+            similarity = _calculate_similarity(actual_val, expected)
+            passed = similarity >= 0.95
+            actual_str = json.dumps(actual_val) if isinstance(actual_val, (list, dict, bool)) else str(actual_val)
+            _shutil.rmtree(tmp_dir, ignore_errors=True)
+            return {
+                "test": test_num, "passed": passed, "similarity": round(similarity, 3),
+                "input": input_display, "expected": expected_str, "actual": actual_str[:500],
+                "stdout": "\n".join(user_stdout),
+                "error": (None if passed else (f"Runtime Error: {stderr_msg}" if stderr_msg else
+                          ("Partial match" if similarity > 0.1 else "Logic mismatch")))
+            }
+
+        # ────────────────── SQL ────────────────────────────────────────────────
+        elif language == 'sql':
+            import sqlite3 as _sqlite3
+            # args[0] = setup SQL (CREATE TABLE + INSERT INTO ...)
+            # user code = SELECT query to evaluate
+            setup_sql = str(args_list[0]) if (isinstance(args_list, list) and args_list and args_list[0]) else ""
+            try:
+                conn = _sqlite3.connect(":memory:")
+                conn.isolation_level = None  # autocommit
+                if setup_sql.strip():
+                    conn.executescript(setup_sql)
+                cursor = conn.execute(code.strip())
+                rows = cursor.fetchall()
+                actual_val = [list(row) for row in rows]
+                conn.close()
+                similarity = _calculate_similarity(actual_val, expected)
+                passed = similarity >= 0.95
+                actual_str = json.dumps(actual_val)
+                return {
+                    "test": test_num, "passed": passed, "similarity": round(similarity, 3),
+                    "input": input_display, "expected": expected_str, "actual": actual_str[:500],
+                    "stdout": actual_str,
+                    "error": None if passed else ("Partial match" if similarity > 0.1 else "Logic mismatch")
+                }
+            except _sqlite3.Error as e:
+                return {
+                    "test": test_num, "passed": False, "input": input_display,
+                    "expected": expected_str, "actual": f"SQL Error: {str(e)}",
+                    "stdout": "", "similarity": 0, "error": f"SQL Error: {str(e)}"
+                }
+            except Exception as e:
+                return {
+                    "test": test_num, "passed": False, "input": input_display,
+                "expected": expected_str, "actual": f"SQL Execution Error: {str(e)}",
+                    "stdout": "", "similarity": 0, "error": str(e)
+                }
+
+        # ────────────────── C / C++ ────────────────────────────────────────────
+        elif language in ('c', 'cpp'):
+            import shutil as _shutil
+            compiler = 'gcc' if language == 'c' else 'g++'
+            if not _shutil.which(compiler):
+                return {
+                    "test": test_num, "passed": False, "input": input_display,
+                    "expected": expected_str, "actual": f"Runtime Error: {compiler} compiler not found on server.",
+                    "stdout": "", "similarity": 0, "error": f"{compiler} not installed"
+                }
+
+            import tempfile as _tf
+            tmp_dir = _tf.mkdtemp()
+            ext_code = 'c' if language == 'c' else 'cpp'
+
+            # Detect function name
+            if not func_name_hint or func_name_hint not in code:
+                fn_matches = _re.findall(
+                    r'(?:int|long|float|double|char\s*\*|bool|string|void)\s+(\w+)\s*\(', code
+                )
+                non_main = [f for f in fn_matches if f not in ('main', 'printf', 'scanf', 'malloc')]
+                func_name = non_main[0] if non_main else (func_name_hint or 'solution')
+            else:
+                func_name = func_name_hint
+
+            # Parse return type and parameter list from signature
+            sig_match = _re.search(
+                r'((?:unsigned\s+)?(?:int|long long|long|float|double|char\s*\*|bool|string|void))\s+'
+                + _re.escape(func_name) + r'\s*\(([^)]*)\)',
+                code
+            )
+            ret_type = sig_match.group(1).strip() if sig_match else 'int'
+            params_str = sig_match.group(2).strip() if sig_match else ''
+
+            # Parse params into [(type, name), ...]
+            params = []
+            if params_str:
+                for p in params_str.split(','):
+                    p = p.strip().replace('[]', '').replace('*', '').strip()
+                    tokens = p.split()
+                    if len(tokens) >= 2:
+                        params.append((' '.join(tokens[:-1]).strip(), tokens[-1]))
+                    elif tokens:
+                        params.append(('int', tokens[0]))
+
+            # Build variable declarations + call args
+            declarations = []
+            call_args = []
+            for i, arg in enumerate(args_list):
+                vname = f"__v{i}__"
+                ptype = params[i][0] if i < len(params) else 'int'
+                if isinstance(arg, list):
+                    if all(isinstance(x, float) for x in arg):
+                        elem = ', '.join(str(float(x)) for x in arg)
+                        declarations.append(f"double {vname}[] = {{{elem}}};")
+                    elif all(isinstance(x, str) for x in arg):
+                        elem = ', '.join(f'"{x}"' for x in arg)
+                        declarations.append(f"char* {vname}[] = {{{elem}}};")
+                    else:
+                        elem = ', '.join(str(int(x)) if isinstance(x, (int, bool)) else str(x) for x in arg)
+                        declarations.append(f"int {vname}[] = {{{elem}}};")
+                    call_args.append(vname)
+                elif isinstance(arg, str):
+                    declarations.append(f'char* {vname} = "{arg}";')
+                    call_args.append(vname)
+                elif isinstance(arg, bool):
+                    declarations.append(f"int {vname} = {1 if arg else 0};")
+                    call_args.append(vname)
+                elif isinstance(arg, int):
+                    t = 'long' if 'long' in ptype else 'int'
+                    declarations.append(f"{t} {vname} = {arg};")
+                    call_args.append(vname)
+                elif isinstance(arg, float):
+                    declarations.append(f"double {vname} = {arg};")
+                    call_args.append(vname)
+                else:
+                    call_args.append(_to_c_literal(arg))
+
+            decls_str = '\n    '.join(declarations)
+            call_expr = f"{func_name}({', '.join(call_args)})"
+
+            # Build result print statement
+            if 'char' in ret_type and '*' in ret_type:
+                result_stmt = f'char* __r__ = {call_expr};\nprintf("__RESULT__:\\"%s\\"\\n", __r__);'
+            elif 'double' == ret_type.strip() or 'float' == ret_type.strip():
+                result_stmt = f'double __r__ = {call_expr};\nprintf("__RESULT__:%g\\n", __r__);'
+            elif 'long' in ret_type:
+                result_stmt = f'long __r__ = {call_expr};\nprintf("__RESULT__:%ld\\n", __r__);'
+            elif 'bool' in ret_type:
+                result_stmt = f'int __r__ = {call_expr};\nprintf("__RESULT__:%s\\n", __r__ ? "true" : "false");'
+            elif 'string' in ret_type:
+                result_stmt = f'std::string __r__ = {call_expr};\nprintf("__RESULT__:\\"%s\\"\\n", __r__.c_str());'
+            else:  # int default
+                result_stmt = f'int __r__ = {call_expr};\nprintf("__RESULT__:%d\\n", __r__);'
+
+            result_stmt_indented = result_stmt.replace('\n', '\n    ')
+
+            if language == 'c':
+                harness = (
+                    "#include <stdio.h>\n#include <stdlib.h>\n"
+                    "#include <string.h>\n#include <stdbool.h>\n"
+                    f"{code}\n\nint main() {{\n"
+                    f"    {decls_str}\n"
+                    f"    {result_stmt_indented}\n"
+                    "    return 0;\n}\n"
+                )
+            else:
+                harness = (
+                    "#include <iostream>\n#include <vector>\n"
+                    "#include <string>\n#include <algorithm>\n#include <stdio.h>\n"
+                    f"{code}\n\nint main() {{\n"
+                    f"    {decls_str}\n"
+                    f"    {result_stmt_indented}\n"
+                    "    return 0;\n}\n"
+                )
+
+            src_file = os.path.join(tmp_dir, f"solution.{ext_code}")
+            exe_file = os.path.join(tmp_dir, "solution.exe" if os.name == 'nt' else "solution")
+            with open(src_file, 'w', encoding='utf-8') as f:
+                f.write(harness)
+
+            compile_proc = subprocess.run(
+                [compiler, src_file, '-o', exe_file, '-lm'],
+                capture_output=True, text=True, timeout=20
+            )
+            if compile_proc.returncode != 0:
+                err = compile_proc.stderr.strip()
+                _shutil.rmtree(tmp_dir, ignore_errors=True)
+                return {
+                    "test": test_num, "passed": False, "input": input_display,
+                    "expected": expected_str, "actual": "Compilation Error",
+                    "stdout": "", "similarity": 0,
+                    "error": f"Compilation Error: {err[:400]}"
+                }
+
+            run_proc = subprocess.run(
+                [exe_file], capture_output=True, text=True, timeout=15
+            )
             lines_out = run_proc.stdout.strip().split('\n')
             eval_result = None
             user_stdout = []

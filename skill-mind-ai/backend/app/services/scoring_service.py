@@ -6,36 +6,49 @@ def refresh_user_score(user_id):
     Recalculates and updates the aggregated Score record for a user.
     Weights: 10% Resume, 30% Quiz, 30% Coding, 30% Interview.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # 1. Latest Resume Score (10% weight)
-    resume = Resume.query.filter_by(user_id=user_id).order_by(Resume.uploaded_at.desc()).first()
     resume_strength = 0
-    if resume:
-        # If we have a resume_score, use it. Otherwise fallback to length heuristic
-        if hasattr(resume, 'resume_score') and resume.resume_score:
-            resume_strength = resume.resume_score
-        else:
-            text_len = len(resume.extracted_text) if resume.extracted_text else 0
-            resume_strength = min((text_len / 1000) * 50 + 50, 100)
+    try:
+        resume = Resume.query.filter_by(user_id=user_id).order_by(Resume.uploaded_at.desc()).first()
+        if resume:
+            if hasattr(resume, 'resume_score') and resume.resume_score:
+                resume_strength = resume.resume_score
+            else:
+                text_len = len(resume.extracted_text) if resume.extracted_text else 0
+                resume_strength = min((text_len / 1000) * 50 + 50, 100)
+    except Exception as e:
+        logger.error(f"Error fetching resume score for user {user_id}: {e}")
 
     # 2. Latest Quiz Score (30% weight)
+    quiz_score = 0
     try:
-        # Try sorting by completed_at if available
-        quiz = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.completed_at.desc()).first()
-    except Exception:
-        # Fallback to id if completed_at fails
-        logger.warning(f"Sort by completed_at failed for user {user_id}, falling back to id.")
         quiz = Quiz.query.filter_by(user_id=user_id).order_by(Quiz.id.desc()).first()
-    
-    quiz_score = quiz.score if (quiz and quiz.score is not None) else 0
+        quiz_score = quiz.score if (quiz and quiz.score is not None) else 0
+    except Exception as e:
+        logger.error(f"Error fetching quiz score for user {user_id}: {e}")
 
     # 3. Latest Coding Score (30% weight)
-    coding = CodingTest.query.filter_by(user_id=user_id).order_by(CodingTest.id.desc()).first()
-    coding_score = coding.score if (coding and coding.score is not None) else 0
+    coding_score = 0
+    try:
+        # Get the summary record if available, otherwise latest test
+        coding = CodingTest.query.filter_by(user_id=user_id).filter(CodingTest.problem_statement == "Full Assessment Summary").order_by(CodingTest.id.desc()).first()
+        if not coding:
+            coding = CodingTest.query.filter_by(user_id=user_id).order_by(CodingTest.id.desc()).first()
+        
+        coding_score = coding.score if (coding and coding.score is not None) else 0
+    except Exception as e:
+        logger.error(f"Error fetching coding score for user {user_id}: {e}")
 
     # 4. Latest Interview Score (30% weight)
-    # Using InterviewReport (the new model)
-    interview = InterviewReport.query.join(InterviewSession).filter(InterviewSession.user_id == user_id).order_by(InterviewReport.generated_at.desc()).first()
-    interview_score = interview.hr_interview_score if (interview and interview.hr_interview_score is not None) else 0
+    interview_score = 0
+    try:
+        interview = InterviewReport.query.join(InterviewSession).filter(InterviewSession.user_id == user_id).order_by(InterviewReport.generated_at.desc()).first()
+        interview_score = interview.hr_interview_score if (interview and interview.hr_interview_score is not None) else 0
+    except Exception as e:
+        logger.error(f"Error fetching interview score for user {user_id}: {e}")
 
     # Ensure scores are within [0, 100]
     resume_strength = max(0, min(100, resume_strength))
@@ -67,23 +80,28 @@ def refresh_user_score(user_id):
     analysis.append(classify(resume_strength, "Resume Quality"))
 
     # Update or Create Score record
-    score_record = Score.query.filter_by(user_id=user_id).order_by(Score.generated_at.desc()).first()
-    
-    if not score_record:
-        score_record = Score(user_id=user_id)
-        db.session.add(score_record)
-    
-    score_record.quiz_score = quiz_score
-    score_record.coding_score = coding_score
-    score_record.interview_score = interview_score
-    score_record.resume_strength = resume_strength
-    score_record.final_score = final_score
-    score_record.readiness_report = f"Your overall interview readiness is {final_score:.1f}%"
-    score_record.skill_gaps = analysis
-    score_record.generated_at = datetime.utcnow()
+    try:
+        score_record = Score.query.filter_by(user_id=user_id).order_by(Score.generated_at.desc()).first()
+        
+        if not score_record:
+            score_record = Score(user_id=user_id)
+            db.session.add(score_record)
+        
+        score_record.quiz_score = quiz_score
+        score_record.coding_score = coding_score
+        score_record.interview_score = interview_score
+        score_record.resume_strength = resume_strength
+        score_record.final_score = final_score
+        score_record.readiness_report = f"Your overall interview readiness is {final_score:.1f}%"
+        score_record.skill_gaps = analysis
+        score_record.generated_at = datetime.utcnow()
 
-    db.session.commit()
-    return score_record
+        db.session.commit()
+        return score_record
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating Score record for user {user_id}: {e}")
+        return None
 
 def calculate_weighted_score(tech_count=0, experience_years=0, project_count=0, has_edu=False, cert_count=0,
                              tech_score=None, exp_score=None, proj_score=None, edu_score=None, cert_score=None):
