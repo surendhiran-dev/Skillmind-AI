@@ -119,7 +119,7 @@ def submit_code():
     problem = get_problem_by_id(problem_id)
     problem_title = problem["title"] if problem else f"Problem {problem_id}"
 
-    if problem and problem.get('language') != language:
+    if problem and problem.get('language', '').lower() != language.lower():
         is_valid = False
         syntax_msg = f"Language Mismatch: Question requires {problem.get('language')}, but you submitted {language}."
         test_score = 0
@@ -207,6 +207,7 @@ def submit_all_coding():
     for sub in submissions:
         code = sub.get('code', '').strip()
         problem_id = sub.get('problem_id', 1)
+        pre_scored_marks = sub.get('pre_scored_marks')  # marks already computed during per-question submit
         
         if not code:
             results.append({"problem_id": problem_id, "marks": 0, "max_marks": 5, "skipped": True})
@@ -214,11 +215,36 @@ def submit_all_coding():
         
         language = sub.get('language', 'python').lower()
         
-        # Verify language against problem
+        # Fetch problem details for title and context
         problem = get_problem_by_id(problem_id)
         problem_title = problem["title"] if problem else f"Problem {problem_id}"
 
-        # Fix: Use case-insensitive comparison
+        # ── Fast path: use pre-scored marks from per-question evaluation ──────
+        if pre_scored_marks is not None:
+            marks = int(pre_scored_marks)
+            final_score = marks * 20  # back-calculate an approximate pct score (5*20=100)
+            total_marks += marks
+
+            new_test = CodingTest(
+                user_id=user_id,
+                problem_statement=problem_title,
+                submitted_code=code,
+                score=final_score,
+                quality_report={"marks": marks, "pre_scored": True},
+            )
+            db.session.add(new_test)
+
+            results.append({
+                "problem_id": problem_id,
+                "problem_title": problem_title,
+                "marks": marks,
+                "max_marks": 5,
+                "final_score": final_score,
+                "skipped": False
+            })
+            continue
+
+        # ── Slow path: re-evaluate (fallback when pre_scored_marks not sent) ──
         required_lang = problem.get('language', 'python').lower() if problem else 'python'
         
         if language != required_lang:
@@ -247,9 +273,6 @@ def submit_all_coding():
         marks = tmp_marks
         
         total_marks += marks
-        
-        problem = get_problem_by_id(problem_id)
-        problem_title = problem["title"] if problem else f"Problem {problem_id}"
         
         new_test = CodingTest(
             user_id=user_id,

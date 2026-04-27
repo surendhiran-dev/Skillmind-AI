@@ -2233,10 +2233,16 @@
             });
             state.codingChallenges = data.challenges || [];
             state.codingIndex = 0;
-            state.codingSubmissions = [];
+            // Pre-fill submissions with 0-mark placeholders so the array is never sparse
+            state.codingSubmissions = state.codingChallenges.map(c => ({
+                problem_id: c.id,
+                code: '',
+                marks: 0,
+                language: c.language || 'python'
+            }));
             state.codingTotalMarks = 0;
             state.detectedLanguages = data.languages || ['python'];
-            state.currentLanguage = 'python';
+            state.currentLanguage = state.codingChallenges[0]?.language || 'python';
 
             // Populate language selector
             const langSelector = $('#codingLanguageSelector');
@@ -2466,14 +2472,27 @@
             outputWrap.scrollTop = 0;
 
             if (isNext) {
-                state.codingSubmissions[state.codingIndex] = { problem_id: p.id, code, marks, language: state.currentLanguage };
+                // Use p.language as ground truth (auto-assigned per question)
+                const prevMarks = (state.codingSubmissions[state.codingIndex] || {}).marks || 0;
+                state.codingSubmissions[state.codingIndex] = {
+                    problem_id: p.id,
+                    code,
+                    marks,
+                    language: p.language || state.currentLanguage
+                };
+                // Accumulate total marks (handles re-submission of same question)
+                state.codingTotalMarks = state.codingTotalMarks - prevMarks + marks;
+
+                // Live update the marks tracker during the exam
+                const tracker = $('#codingMarksTracker');
+                if (tracker) tracker.textContent = `Marks: ${state.codingTotalMarks}/30`;
 
                 if (state.codingIndex < state.codingChallenges.length - 1) {
                     state.codingIndex++;
                     stopCodingTimer();
                     setTimeout(() => {
                         renderProblem();
-                        showToast(`Problem ${state.codingIndex} submitted.`, 'success');
+                        showToast(`Q${state.codingIndex} submitted — ${marks}/5 marks. Total: ${state.codingTotalMarks}/30`, 'success');
                     }, 1000);
                 } else {
                     stopCodingTimer();
@@ -2495,19 +2514,29 @@
         if (progressBar) progressBar.style.width = '100%';
 
         try {
-            // Fix: Map submissions using their own recorded language, NOT the global state.currentLanguage
-            const submissionsData = state.codingSubmissions.map(s => ({
-                problem_id: s.problem_id,
-                code: s.code,
-                language: s.language || state.currentLanguage // Fallback just in case
-            }));
+            // Build submissions array safely — Array.from ensures no sparse undefined entries
+            // even if the user skipped a question without pressing Submit & Next.
+            const submissionsData = Array.from(
+                { length: state.codingChallenges.length },
+                (_, i) => {
+                    const s = state.codingSubmissions[i] || {};
+                    const c = state.codingChallenges[i] || {};
+                    return {
+                        problem_id: s.problem_id || c.id,
+                        code: s.code || '',
+                        language: s.language || c.language || state.currentLanguage || 'python',
+                        pre_scored_marks: s.marks || 0   // carry pre-earned marks; backend trusts these
+                    };
+                }
+            );
 
             const data = await api('/api/coding/submit-all', {
                 method: 'POST',
                 body: { submissions: submissionsData }
             });
 
-            const marksTotal = data.total_marks || state.codingTotalMarks;
+            // Prefer server total; fall back to client-accumulated total
+            const marksTotal = (data.total_marks != null) ? data.total_marks : state.codingTotalMarks;
             $('#codingScoreDisplay').textContent = `${marksTotal}/30`;
 
             const pct = data.score_pct || (marksTotal / 30 * 100);
@@ -2520,11 +2549,22 @@
                 $('#codingFeedback').textContent = 'Keep practicing! Focus on common algorithms and clean code structure.';
             }
 
+            // Build results grid — prefer server results when available,
+            // otherwise fall back to the per-question marks already in state.
             let resultHtml = '<div class="marks-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:1rem;">';
-            (data.results || []).forEach((r, idx) => {
+            const serverResults = data.results || [];
+            state.codingChallenges.forEach((challenge, idx) => {
+                const serverResult = serverResults[idx];
+                const storedSub = state.codingSubmissions[idx];
+                // Use server-recalculated marks if available; otherwise the marks
+                // already earned during per-question submit are the ground truth.
+                const questionMarks = (serverResult && serverResult.marks != null)
+                    ? serverResult.marks
+                    : (storedSub ? storedSub.marks : 0);
+                const title = (serverResult && serverResult.problem_title) || challenge.title || `Problem ${idx + 1}`;
                 resultHtml += `<div class="mark-item" style="background:var(--glass); padding:10px; border-radius:8px;">
-                    <strong>Q${idx + 1}:</strong> ${r.problem_title} <br>
-                    <span style="color:var(--accent)">${r.marks}/5 marks</span>
+                    <strong>Q${idx + 1}:</strong> ${title} <br>
+                    <span style="color:var(--accent)">${questionMarks}/5 marks</span>
                 </div>`;
             });
             resultHtml += '</div>';
@@ -2538,8 +2578,36 @@
 
             loadDashboard();
         } catch (err) {
-            alert('Failed to conclude assessment.');
-            $('#codingStart').classList.remove('hidden');
+            // Even if submit-all fails, show the marks already earned per question
+            const marksTotal = state.codingTotalMarks;
+            $('#codingScoreDisplay').textContent = `${marksTotal}/30`;
+            const pct = marksTotal / 30 * 100;
+            if (pct >= 80) {
+                $('#codingFeedback').textContent = 'Stunning! You are a coding wizard. Ready for high-profile engineering roles.';
+            } else if (pct >= 50) {
+                $('#codingFeedback').textContent = 'Strong implementation. You have a solid grasp of algorithmic thinking.';
+            } else {
+                $('#codingFeedback').textContent = 'Keep practicing! Focus on common algorithms and clean code structure.';
+            }
+
+            let resultHtml = '<div class="marks-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:1rem;">';
+            state.codingChallenges.forEach((challenge, idx) => {
+                const storedSub = state.codingSubmissions[idx];
+                const questionMarks = storedSub ? storedSub.marks : 0;
+                resultHtml += `<div class="mark-item" style="background:var(--glass); padding:10px; border-radius:8px;">
+                    <strong>Q${idx + 1}:</strong> ${challenge.title || 'Problem ' + (idx+1)} <br>
+                    <span style="color:var(--accent)">${questionMarks}/5 marks</span>
+                </div>`;
+            });
+            resultHtml += '</div>';
+            $('#codingResultDetails').innerHTML = resultHtml;
+
+            $('#codingResult').classList.remove('hidden');
+            sessionStorage.setItem('coding_completed', '1');
+            enforceFlow();
+            showToast('Assessment saved with earned marks.', 'success');
+            startRedirectTimer('gotoInterviewBtn', 'interview', 'Go to Personal Interview', 10);
+            loadDashboard();
         }
     }
 
