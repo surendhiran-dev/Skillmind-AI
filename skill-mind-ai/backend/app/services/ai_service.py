@@ -838,7 +838,9 @@ def generate_ai_jobs_llm(skills, readiness_score=0, strong_skills=None, weak_ski
     4. Required skills must actually match the candidate's profile (aim for 50-90% match)
     5. Mix job types: Full-time, Remote, Internship
     6. Mix experience levels around the candidate's level (some slightly above, some at their level)
-    7. Apply_url must be a REAL job search URL (LinkedIn, Naukri, company careers page)
+    7. Apply_url MUST be a valid, clickable LinkedIn Search URL or Company Careers page. 
+       - If you don't have a specific JOB ID, use a search URL: https://www.linkedin.com/jobs/search/?keywords=TITLE+COMPANY+LOCATION
+       - ENSURE NO SPACES in the URL (use + or %20).
     8. Each description should be unique and compelling (2-3 sentences)
 
     Return ONLY a JSON array:
@@ -855,7 +857,7 @@ def generate_ai_jobs_llm(skills, readiness_score=0, strong_skills=None, weak_ski
             "required_skills": ["Skill1", "Skill2", "Skill3", "Skill4", "Skill5"],
             "preferred_skills": ["Skill1", "Skill2"],
             "description": "Compelling 2-3 sentence description of the role.",
-            "apply_url": "https://real-job-url.com",
+            "apply_url": "https://www.linkedin.com/jobs/search/?keywords=Software+Engineer+Google+Bangalore",
             "posted_days_ago": 1,
             "logo_url": null
         }}

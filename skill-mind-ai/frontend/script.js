@@ -1146,88 +1146,25 @@
             // 3. Update Dashboard Dashboard UI
             loadDashboard(); 
 
-            // 4. Open printable report
-            const html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Interview Readiness Report - ${state.user.username}</title>
-                    <style>
-                        body { font-family: 'Plus Jakarta Sans', sans-serif; padding: 40px; color: #333; line-height: 1.6; background: #fff; }
-                        .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #6366f1; padding-bottom: 20px; }
-                        .header h1 { color: #6366f1; margin: 0; font-size: 2.2rem; }
-                        .section { margin-bottom: 30px; background: #f8fafc; padding: 25px; border-radius: 16px; border: 1px solid #e2e8f0; }
-                        .section h3 { margin-top: 0; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; margin-bottom: 20px; }
-                        .marks-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-                        .mark-item { background: white; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-                        .mark-label { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
-                        .mark-val { font-size: 1.8rem; font-weight: 800; color: #6366f1; margin-top: 5px; }
-                        .total-score { text-align: center; font-size: 2rem; font-weight: 800; color: #10b981; margin: 25px 0; }
-                        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
-                        .status-strong { background: #dcfce7; color: #166534; }
-                        .status-moderate { background: #fef9c3; color: #854d0e; }
-                        .status-weak { background: #fee2e2; color: #991b1b; }
-                        @media print { .no-print { display: none; } }
-                        .btn-print { background: #6366f1; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; width: 100%; max-width: 200px; }
-                    </style>
-                </head>
-                <body>
-                    <div class="no-print" style="text-align: right; margin-bottom: 25px;">
-                        <button class="btn-print" onclick="window.print()">Print Report PDF</button>
-                    </div>
-                    <div class="header">
-                        <h1>Skill Mind AI</h1>
-                        <p>Comprehensive Interview Readiness Report</p>
-                        <p style="color: #64748b;">Candidate: <strong>${state.user.username}</strong> | Analysis Date: ${new Date().toLocaleDateString()}</p>
-                    </div>
+            // Save report data to sessionStorage and open dedicated report page
+            sessionStorage.setItem('reportData', JSON.stringify({
+                username: state.user.username,
+                date: new Date().toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'}),
+                final_score: r.final_score || 0,
+                readiness_level: r.readiness_level || 'Needs Improvement',
+                marks: r.marks || {},
+                analysis: r.analysis || [],
+                skills: data.skills || [],
+                quiz_score: r.quiz_score || 0,
+                coding_score: r.coding_score || 0,
+                interview_score: r.interview_score || 0,
+                resume_strength: r.resume_strength || 0,
+                quiz_history: data.quiz_history || [],
+                coding_history: data.coding_history || []
+            }));
+            reportWindow.location.href = '/report.html';
+            showToast('Report generated!', 'success');
 
-                    <div class="section">
-                        <h3>Performance Summary</h3>
-                        <div class="total-score">
-                            Overall Readiness: ${Math.round(r.final_score)}%<br>
-                            <span class="status-badge status-${(r.readiness_level || 'Moderate').toLowerCase().replace(' ', '')}">${r.readiness_level || 'Moderate'}</span>
-                        </div>
-                        <div class="marks-grid">
-                            <div class="mark-item"><div class="mark-label">Resume Strength</div><div class="mark-val">${r.marks?.resume || 0}/10</div></div>
-                            <div class="mark-item"><div class="mark-label">Technical Quiz</div><div class="mark-val">${r.marks?.quiz || 0}/30</div></div>
-                            <div class="mark-item"><div class="mark-label">Coding Logic</div><div class="mark-val">${r.marks?.coding || 0}/30</div></div>
-                            <div class="mark-item"><div class="mark-label">Interview Impact</div><div class="mark-val">${r.marks?.interview || 0}/30</div></div>
-                        </div>
-                    </div>
-
-                    <div class="section">
-                        <h3>Insights & Recommendations</h3>
-                        ${(r.analysis || []).map(a => `
-                            <div style="margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px dashed #e2e8f0;">
-                                <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <strong style="color: #1e293b;">${a.category}</strong>
-                                    <span class="status-badge status-${a.status.toLowerCase()}">${a.status}</span>
-                                </div>
-                                <p style="margin: 8px 0 0 0; color: #475569; font-size: 0.95rem;">${a.suggestion}</p>
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <div class="section">
-                        <h3>Career Matching</h3>
-                        <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 15px;">Based on your current skill profile, here are top matching opportunities:</p>
-                        ${(data.job_recommendations || []).map(j => `
-                            <div style="background:#fff; padding:12px; border-radius:8px; margin-bottom:10px; border:1px solid #e2e8f0;">
-                                <strong style="color: #6366f1;">${j.role}</strong> — <span style="font-size:0.85rem; color:#64748b;">${j.company}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <footer style="text-align: center; color: #94a3b8; font-size: 0.8rem; margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
-                        &copy; ${new Date().getFullYear()} Skill Mind AI - Empowering Your Career Journey
-                    </footer>
-                </body>
-                </html>
-            `;
-            reportWindow.document.open();
-            reportWindow.document.write(html);
-            reportWindow.document.close();
-            showToast('Report synchronized and generated!', 'success');
         } catch (err) {
             console.error('[ReportGen] Error:', err);
             showToast(err.message || 'Error generating report.', 'error');

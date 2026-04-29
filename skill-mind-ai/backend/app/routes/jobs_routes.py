@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..services.jobs_service import get_recommendations, get_all_jobs, seed_jobs
+from ..services.jobs_service import get_recommendations, get_all_jobs, seed_jobs, clear_ai_cache
 from ..services.ai_service import generate_dynamic_courses_llm, generate_ai_jobs_llm
 
 jobs_bp = Blueprint('jobs', __name__)
@@ -21,6 +21,13 @@ def all_jobs():
 def seed():
     result = seed_jobs()
     return jsonify(result), 200
+
+@jobs_bp.route('/refresh-cache/<int:candidate_id>', methods=['POST'])
+@jwt_required()
+def refresh_cache(candidate_id):
+    """Invalidates the AI jobs cache for a candidate, forcing fresh AI generation."""
+    clear_ai_cache(candidate_id)
+    return jsonify({"message": "Cache cleared. Next request will generate fresh AI jobs."}), 200
 
 @jobs_bp.route('/ai-courses/<int:candidate_id>', methods=['GET'])
 @jwt_required()

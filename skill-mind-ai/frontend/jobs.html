@@ -36,12 +36,23 @@
       color: var(--text);
       font-family: 'Outfit', sans-serif;
       min-height: 100vh;
-      overflow-x: hidden
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
     }
 
     a {
       color: inherit;
       text-decoration: none
+    }
+
+    input, textarea {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      -moz-user-select: text !important;
+      -ms-user-select: text !important;
     }
 
     .hidden {
@@ -1001,6 +1012,9 @@
         </select>
         <span class="results-count" id="resultsCount">Loading...</span>
         <div class="chips" id="filterChips"></div>
+        <button id="refreshJobsBtn" onclick="refreshAIJobs()" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(26,115,232,0.15);color:var(--blue);border:1px solid rgba(26,115,232,0.3);border-radius:20px;font-size:.78rem;font-weight:600;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(26,115,232,0.25)'" onmouseout="this.style.background='rgba(26,115,232,0.15)'">
+          <i class="fas fa-sync-alt"></i> Regenerate AI Jobs
+        </button>
       </div>
       <div id="jobFeed">
         <div class="skeleton sk-card"></div>
@@ -1097,12 +1111,28 @@
       } catch (e) { return null; }
     }
 
-    async function loadJobs() {
+    async function loadJobs(forceRefresh = false) {
       const cid = getCandidateId();
       if (!cid) { showEmpty('Please log in first'); return; }
       const tok = sessionStorage.getItem('token');
+
+      // Show AI-generating loading state
+      document.getElementById('jobFeed').innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;gap:16px">
+          <div style="width:48px;height:48px;border:3px solid rgba(26,115,232,0.2);border-top-color:#1a73e8;border-radius:50%;animation:spin 1s linear infinite"></div>
+          <div style="text-align:center">
+            <div style="font-size:1rem;font-weight:600;color:#fff;margin-bottom:6px">✨ AI is personalizing your jobs...</div>
+            <div style="font-size:.82rem;color:var(--muted)">Analyzing your skills, scores & generating tailored opportunities</div>
+          </div>
+        </div>`;
+      document.getElementById('resultsCount').textContent = 'Generating...';
+
+      const url = forceRefresh
+        ? `${API}/api/jobs/recommendations/${cid}?refresh=1`
+        : `${API}/api/jobs/recommendations/${cid}`;
+
       try {
-        const r = await fetch(`${API}/api/jobs/recommendations/${cid}`, { headers: { 'Authorization': 'Bearer ' + tok } });
+        const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + tok } });
         if (!r.ok) throw new Error('API error');
         const d = await r.json();
         candidateData = d.candidate || {};
@@ -1110,12 +1140,31 @@
         renderProfile(d.candidate, d.stats);
         renderRightPanel(d.stats, d.candidate);
         applyFilters();
-        if (!allJobs.length) showEmpty();
-        // Load AI-powered content in background (non-blocking)
+        if (!allJobs.length) showEmpty('AI is generating your personalized jobs. Please try again shortly.');
+        // Load AI courses in background
         loadAICourses(cid, tok);
       } catch (e) {
         console.error(e);
         showEmpty('Could not load recommendations. Make sure you have completed some assessments.');
+      }
+    }
+
+    async function refreshAIJobs() {
+      const btn = document.getElementById('refreshJobsBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Regenerating...';
+      }
+      // Invalidate backend cache by using a special param
+      const cid = getCandidateId();
+      const tok = sessionStorage.getItem('token');
+      try {
+        await fetch(`${API}/api/jobs/refresh-cache/${cid}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + tok } });
+      } catch (e) { /* ignore */ }
+      await loadJobs(true);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Regenerate AI Jobs';
       }
     }
 

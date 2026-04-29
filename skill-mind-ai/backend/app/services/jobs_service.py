@@ -1,5 +1,8 @@
 import json
+import logging
 from ..models.models import JobVacancy, Score, Resume, Skill, User, InterviewReport, InterviewSession, db
+
+logger = logging.getLogger(__name__)
 
 # ── readiness helpers ────────────────────────────────────────────────────────
 def _readiness_level(score):
@@ -13,8 +16,12 @@ def _exp_level_score(level):
 def _normalize(s):
     return s.strip().lower()
 
+# ── simple in-process cache to avoid repeated AI calls ───────────────────────
+_ai_jobs_cache = {}  # {user_id: {"jobs": [...], "ts": timestamp}}
+
 # ── main recommendation engine ───────────────────────────────────────────────
 def get_recommendations(candidate_id):
+    import time
     user = User.query.get(candidate_id)
     if not user:
         return None
@@ -44,11 +51,34 @@ def get_recommendations(candidate_id):
                 else:
                     weak_skills.append(cat)
 
-    jobs = JobVacancy.query.filter_by(is_active=True).filter(JobVacancy.min_readiness <= readiness_score).all()
+    # ── AI-generated jobs (dynamic, never static) ─────────────────────────────
+    cache_entry = _ai_jobs_cache.get(candidate_id)
+    cache_ttl = 600  # 10 minutes
+    ai_raw_jobs = []
 
+    if cache_entry and (time.time() - cache_entry["ts"]) < cache_ttl:
+        logger.info(f"[Jobs] Using cached AI jobs for user {candidate_id}")
+        ai_raw_jobs = cache_entry["jobs"]
+    else:
+        logger.info(f"[Jobs] Generating AI jobs for user {candidate_id} | skills={raw_skills[:5]} | score={readiness_score}")
+        try:
+            from ..services.ai_service import generate_ai_jobs_llm
+            ai_raw_jobs = generate_ai_jobs_llm(
+                skills=raw_skills,
+                readiness_score=readiness_score,
+                strong_skills=strong_skills,
+                weak_skills=weak_skills
+            )
+            if ai_raw_jobs:
+                _ai_jobs_cache[candidate_id] = {"jobs": ai_raw_jobs, "ts": time.time()}
+                logger.info(f"[Jobs] AI generated {len(ai_raw_jobs)} jobs for user {candidate_id}")
+        except Exception as e:
+            logger.error(f"[Jobs] AI generation failed: {e}")
+
+    # ── Apply matching/scoring logic to AI-generated jobs ─────────────────────
     scored_jobs = []
-    for job in jobs:
-        req = [_normalize(s) for s in (job.required_skills or [])]
+    for idx, job in enumerate(ai_raw_jobs):
+        req = [_normalize(s) for s in (job.get("required_skills") or [])]
         if not req:
             continue
 
@@ -57,13 +87,14 @@ def get_recommendations(candidate_id):
 
         overlap_pct = len(matched) / len(req) if req else 0
 
-        job_level_score = _exp_level_score(job.experience_level)
+        exp_level = job.get("experience_level", "Junior")
+        job_level_score = _exp_level_score(exp_level)
         candidate_level_score = min(readiness_score, 100)
         level_diff = abs(job_level_score - candidate_level_score)
         readiness_fit = max(0, 1 - level_diff / 100)
 
         exp_mapping = {"Fresher": 10, "Junior": 30, "Mid": 50, "Senior": 75, "Lead": 90}
-        exp_threshold = exp_mapping.get(job.experience_level, 50)
+        exp_threshold = exp_mapping.get(exp_level, 50)
         experience_fit = 1.0 if readiness_score >= exp_threshold else readiness_score / max(exp_threshold, 1)
         experience_fit = min(experience_fit, 1.0)
 
@@ -72,22 +103,28 @@ def get_recommendations(candidate_id):
         )
         skill_gap_pct = round(len(missing) / len(req) * 100, 1) if req else 0
 
+        apply_url = job.get("apply_url", "#")
+        if apply_url and apply_url.startswith("http"):
+             import urllib.parse
+             # Simple encoding for spaces if they exist
+             apply_url = apply_url.replace(" ", "+")
+
         scored_jobs.append({
-            "id": job.id,
-            "title": job.title,
-            "company": job.company,
-            "location": job.location,
-            "job_type": job.job_type,
-            "experience_level": job.experience_level,
-            "salary_min": job.salary_min,
-            "salary_max": job.salary_max,
-            "currency": job.currency,
-            "required_skills": job.required_skills or [],
-            "preferred_skills": job.preferred_skills or [],
-            "description": job.description,
-            "apply_url": job.apply_url,
-            "logo_url": job.logo_url,
-            "posted_days_ago": job.posted_days_ago,
+            "id": job.get("id", 9000 + idx),
+            "title": job.get("title", ""),
+            "company": job.get("company", ""),
+            "location": job.get("location", "India"),
+            "job_type": job.get("job_type", "Full-time"),
+            "experience_level": exp_level,
+            "salary_min": job.get("salary_min", 0),
+            "salary_max": job.get("salary_max", 0),
+            "currency": job.get("currency", "INR"),
+            "required_skills": job.get("required_skills") or [],
+            "preferred_skills": job.get("preferred_skills") or [],
+            "description": job.get("description", ""),
+            "apply_url": apply_url,
+            "logo_url": job.get("logo_url"),
+            "posted_days_ago": job.get("posted_days_ago", 1),
             "match_score": match_score,
             "matched_skills": matched,
             "missing_skills": missing,
@@ -462,3 +499,12 @@ def get_all_jobs():
         }
         for j in jobs
     ]
+
+def clear_ai_cache(candidate_id=None):
+    """Clears the in-process AI jobs cache for one or all candidates."""
+    if candidate_id is not None:
+        _ai_jobs_cache.pop(candidate_id, None)
+        logger.info(f"[Jobs] Cache cleared for user {candidate_id}")
+    else:
+        _ai_jobs_cache.clear()
+        logger.info("[Jobs] All AI job caches cleared")
