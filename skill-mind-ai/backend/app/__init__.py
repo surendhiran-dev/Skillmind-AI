@@ -103,6 +103,7 @@ def create_app():
     from .routes.dashboard_routes import dashboard_bp
     from .routes.profile_routes import profile_bp
     from .routes.support_routes import support_bp
+    from .routes.jobs_routes import jobs_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(resume_bp, url_prefix='/api/resume')
@@ -113,6 +114,8 @@ def create_app():
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
     app.register_blueprint(profile_bp, url_prefix='/api/profile')
     app.register_blueprint(support_bp, url_prefix='/api/support')
+    app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
+
     
     # Import socket events to register them
     from .websocket import interview_socket
@@ -132,6 +135,10 @@ def create_app():
             break
             
     print(f"DEBUG: Serving frontend from {frontend_dir}")
+
+    @app.route('/jobs')
+    def jobs_page():
+        return send_from_directory(frontend_dir, 'jobs.html')
 
     @app.route('/')
     def serve_index():

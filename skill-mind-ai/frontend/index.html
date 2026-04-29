@@ -283,6 +283,13 @@
                     </svg>
                     Interview
                 </a>
+                <a href="#" class="nav-link" id="jobsNavLink" onclick="openJobsPage(event)" style="display:flex;align-items:center;gap:6px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="7" width="20" height="14" rx="2"/>
+                        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+                    </svg>
+                    Jobs
+                </a>
             </div>
             <div class="nav-right">
                 <div class="nav-profile-trigger" id="navProfileLink">
@@ -367,6 +374,18 @@
                 </div>
                 <p id="readinessText" class="readiness-text">Complete all assessments to see your readiness score.
                 </p>
+            </div>
+            <div class="card" id="dashboardJobsCard" style="margin: 0 2rem 2rem; background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
+                    <div>
+                        <h3 style="margin:0;">🎯 Top Job Matches</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Based on your current readiness score and skills</p>
+                    </div>
+                    <button class="btn-primary btn-sm" onclick="openJobsPage(event)">View All Jobs</button>
+                </div>
+                <div id="dashboardJobsList" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem;">
+                    <p class="placeholder-text">Complete assessments to see matched opportunities...</p>
+                </div>
             </div>
         </div>
 

@@ -986,9 +986,17 @@
         showView('authView');
     }
 
+    window.openJobsPage = (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        window.location.href = '/jobs';
+    };
+
     /* ===== Navigation ===== */
     function initNav() {
-        $$('.nav-link').forEach(link => {
+        $$('.nav-link[data-view]').forEach(link => {
             link.addEventListener('click', e => {
                 e.preventDefault();
                 const view = link.dataset.view;
@@ -1020,14 +1028,16 @@
                     if ($('#statQuiz')) $('#statQuiz').textContent = r.marks.quiz;
                     if ($('#statCoding')) $('#statCoding').textContent = r.marks.coding;
                     if ($('#statInterview')) $('#statInterview').textContent = r.marks.interview;
-                    if ($('#statTotal')) $('#statTotal').textContent = r.marks.total;
+                    // Recalculate total from components for accuracy
+                    const computedTotal = parseFloat(r.marks.resume || 0) + parseFloat(r.marks.quiz || 0) + parseFloat(r.marks.coding || 0) + parseFloat(r.marks.interview || 0);
+                    if ($('#statFinal')) $('#statFinal').textContent = computedTotal.toFixed(1);
                 } else {
                     // Fallback to percentage display if marks object is missing
                     if ($('#statResume')) $('#statResume').textContent = `${(r.resume_strength || 0).toFixed(0)}%`;
                     if ($('#statQuiz')) $('#statQuiz').textContent = `${(r.quiz_score || 0).toFixed(0)}%`;
                     if ($('#statCoding')) $('#statCoding').textContent = `${(r.coding_score || 0).toFixed(0)}%`;
                     if ($('#statInterview')) $('#statInterview').textContent = `${(r.interview_score || 0).toFixed(0)}%`;
-                    if ($('#statTotal')) $('#statTotal').textContent = `${(r.final_score || 0).toFixed(0)}%`;
+                    if ($('#statFinal')) $('#statFinal').textContent = `${(r.final_score || 0).toFixed(1)}`;
                 }
 
                 const bar = $('#readinessBar');
@@ -1079,6 +1089,25 @@
             // Enhanced multi-module history chart
             if (data.quiz_history || data.coding_history || data.interview_history) {
                 renderHistoryChart(data);
+            }
+
+            // Job Recommendations
+            const jobsList = $('#dashboardJobsList');
+            if (jobsList) {
+                if (data.job_recommendations && data.job_recommendations.length) {
+                    jobsList.innerHTML = data.job_recommendations.slice(0, 3).map(j => `
+                        <div class="job-mini-card" style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:12px; border:1px solid var(--glass-border);">
+                            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:8px;">
+                                <h4 style="margin:0; font-size:1rem; color:#fff;">${j.title}</h4>
+                                <span style="background:var(--accent); color:#000; font-size:0.7rem; font-weight:700; padding:2px 6px; border-radius:4px;">${j.match_score}% Fit</span>
+                            </div>
+                            <p style="font-size:0.8rem; color:var(--text-muted); margin:0 0 12px 0;">${j.company} • ${j.location}</p>
+                            <a href="${j.apply_url}" target="_blank" style="font-size:0.8rem; color:var(--primary); text-decoration:none; font-weight:600;">Apply Now →</a>
+                        </div>
+                    `).join('');
+                } else {
+                    jobsList.innerHTML = '<p class="placeholder-text">Complete more assessments to unlock job matches.</p>';
+                }
             }
 
         } catch (err) {
@@ -3160,6 +3189,17 @@
         initScoring();
 
         initProfile();
+
+        // Check for specific view requested via URL (e.g., from Jobs page)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('view') === 'profile') {
+            setTimeout(() => {
+                $('#navProfileLink')?.click();
+                // Clean up URL without reloading
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            }, 500);
+        }
     });
 
     function loadMonacoEditor(callback) {

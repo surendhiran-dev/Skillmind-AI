@@ -725,3 +725,150 @@ def generate_skill_gap_recommendations_llm(missing_skills):
     
     response_text = call_ai(prompt, system_prompt, module='resume')
     return clean_json_response(response_text) or []
+
+def generate_dynamic_courses_llm(missing_skills, existing_skills=None, readiness_score=0):
+    """
+    Generate highly personalized, dynamic course recommendations based on a candidate's
+    missing skills and readiness level. Uses AI to pick the best platforms and courses.
+    """
+    if not missing_skills:
+        return []
+
+    existing_str = ', '.join(existing_skills[:10]) if existing_skills else 'None specified'
+    missing_str = ', '.join(missing_skills[:10])
+
+    system_prompt = (
+        "You are a senior technical career coach specializing in personalized learning paths "
+        "for software engineers in India. You recommend real, specific courses that are currently "
+        "available on platforms like Coursera, Udemy, YouTube, freeCodeCamp, and official docs."
+    )
+    prompt = f"""
+    A candidate with the following profile needs personalized course recommendations:
+
+    Current Skills: {existing_str}
+    Missing Skills (Priority Order): {missing_str}
+    Overall Readiness Score: {readiness_score}/100
+
+    Generate 6-8 specific, real course recommendations to help this candidate close their skill gaps.
+    Focus on the most critical missing skills first. Each course should be:
+    1. A REAL course available on a popular platform today
+    2. Ordered by learning priority (most impactful first)
+    3. Matched to the candidate's level ({
+        'beginner' if readiness_score < 40 else 'intermediate' if readiness_score < 70 else 'advanced'
+    })
+
+    Return ONLY a JSON array:
+    [
+        {{
+            "skill": "The skill this course teaches",
+            "title": "Exact course name",
+            "platform": "Platform name (Coursera/Udemy/YouTube/freeCodeCamp/etc.)",
+            "url": "https://real-course-url.com",
+            "duration": "Estimated duration (e.g., '10 hours', '4 weeks')",
+            "level": "Beginner/Intermediate/Advanced",
+            "description": "One sentence describing what the candidate will learn",
+            "priority": "high/medium/low",
+            "free": true or false
+        }}
+    ]
+    """
+
+    response_text = call_ai(prompt, system_prompt, module='default')
+    result = clean_json_response(response_text)
+    if result and isinstance(result, list):
+        return result
+
+    # Fallback: Generate static but skill-matched recommendations
+    fallback = []
+    platform_map = {
+        'Python': ('Python for Everybody', 'Coursera', 'https://www.coursera.org/specializations/python', '4 weeks'),
+        'React': ('React - The Complete Guide', 'Udemy', 'https://www.udemy.com/course/react-the-complete-guide-incl-redux/', '40 hours'),
+        'Node.js': ('The Complete Node.js Developer Course', 'Udemy', 'https://www.udemy.com/course/the-complete-nodejs-developer-course-2/', '35 hours'),
+        'SQL': ('SQL for Data Analysis', 'Coursera', 'https://www.coursera.org/learn/sql-for-data-science', '4 weeks'),
+        'AWS': ('AWS Fundamentals', 'Coursera', 'https://www.coursera.org/specializations/aws-fundamentals', '6 weeks'),
+        'Docker': ('Docker & Kubernetes: The Practical Guide', 'Udemy', 'https://www.udemy.com/course/docker-kubernetes-the-practical-guide/', '23 hours'),
+        'Machine Learning': ('Machine Learning Specialization', 'Coursera', 'https://www.coursera.org/specializations/machine-learning-introduction', '3 months'),
+        'Java': ('Java Programming Masterclass', 'Udemy', 'https://www.udemy.com/course/java-the-complete-java-developer-course/', '80 hours'),
+        'TypeScript': ('Understanding TypeScript', 'Udemy', 'https://www.udemy.com/course/understanding-typescript/', '15 hours'),
+        'MongoDB': ('MongoDB Basics', 'MongoDB University', 'https://university.mongodb.com/courses/M001/about', '3 hours'),
+    }
+    for skill in missing_skills[:6]:
+        title, platform, url, duration = platform_map.get(skill, (
+            f'Learn {skill}', 'freeCodeCamp', f'https://www.youtube.com/results?search_query=learn+{skill}', '10 hours'
+        ))
+        fallback.append({
+            "skill": skill, "title": title, "platform": platform, "url": url,
+            "duration": duration, "level": "Intermediate", "priority": "high",
+            "description": f"Master {skill} with hands-on projects and real-world examples.",
+            "free": platform in ('freeCodeCamp', 'YouTube', 'MongoDB University')
+        })
+    return fallback
+
+
+def generate_ai_jobs_llm(skills, readiness_score=0, strong_skills=None, weak_skills=None):
+    """
+    Generate dynamic, AI-tailored job listings specific to the candidate.
+    These are real-market job postings generated dynamically based on the candidate's profile.
+    """
+    if not skills:
+        return []
+
+    strong_str = ', '.join(strong_skills[:5]) if strong_skills else 'N/A'
+    weak_str = ', '.join(weak_skills[:5]) if weak_skills else 'N/A'
+    level = 'Fresher' if readiness_score < 30 else 'Junior' if readiness_score < 50 else 'Mid' if readiness_score < 70 else 'Senior'
+
+    system_prompt = (
+        "You are a senior technical recruiter at a top Indian tech firm. "
+        "You create realistic, compelling job listings for the Indian tech market "
+        "that are perfectly matched to candidates' skill profiles."
+    )
+    prompt = f"""
+    Generate 8-10 realistic, diverse job listings for the Indian tech market that are perfectly matched
+    to this candidate profile:
+
+    Skills: {', '.join(skills[:15])}
+    Strong Areas: {strong_str}
+    Weaker Areas: {weak_str}
+    Experience Level: {level} (Readiness Score: {readiness_score}/100)
+
+    REQUIREMENTS:
+    1. Include real Indian tech companies (Flipkart, Razorpay, Swiggy, PhonePe, CRED, Zepto, Meesho, etc.)
+    2. Also include global companies with India offices (Google, Microsoft, Amazon, Atlassian, etc.)
+    3. Salary ranges must be realistic for the Indian market in INR
+    4. Required skills must actually match the candidate's profile (aim for 50-90% match)
+    5. Mix job types: Full-time, Remote, Internship
+    6. Mix experience levels around the candidate's level (some slightly above, some at their level)
+    7. Apply_url must be a REAL job search URL (LinkedIn, Naukri, company careers page)
+    8. Each description should be unique and compelling (2-3 sentences)
+
+    Return ONLY a JSON array:
+    [
+        {{
+            "title": "Job Title",
+            "company": "Company Name",
+            "location": "City, India",
+            "job_type": "Full-time/Remote/Internship/Contract",
+            "experience_level": "Fresher/Junior/Mid/Senior",
+            "salary_min": 800000,
+            "salary_max": 1400000,
+            "currency": "INR",
+            "required_skills": ["Skill1", "Skill2", "Skill3", "Skill4", "Skill5"],
+            "preferred_skills": ["Skill1", "Skill2"],
+            "description": "Compelling 2-3 sentence description of the role.",
+            "apply_url": "https://real-job-url.com",
+            "posted_days_ago": 1,
+            "logo_url": null
+        }}
+    ]
+    """
+
+    response_text = call_ai(prompt, system_prompt, module='default')
+    result = clean_json_response(response_text)
+    if result and isinstance(result, list):
+        # Add IDs for frontend compatibility
+        for i, job in enumerate(result):
+            job['id'] = 9000 + i
+            job['logo_url'] = job.get('logo_url') or None
+        return result
+
+    return []

@@ -165,3 +165,24 @@ class AIChallenge(db.Model):
     test_cases = db.Column(db.JSON) # List of dicts: {"input": ..., "expected": ...}
     test_wrapper = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class JobVacancy(db.Model):
+    __tablename__ = 'job_vacancies'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    company = db.Column(db.String(150), nullable=False)
+    location = db.Column(db.String(100))
+    job_type = db.Column(db.String(50))          # Full-time / Part-time / Internship / Contract / Remote
+    experience_level = db.Column(db.String(50))  # Fresher / Junior / Mid / Senior / Lead
+    min_readiness = db.Column(db.Integer, default=0)
+    required_skills = db.Column(db.JSON)         # ["Python", "Docker", "Flask"]
+    preferred_skills = db.Column(db.JSON)        # nice-to-have
+    salary_min = db.Column(db.Integer)
+    salary_max = db.Column(db.Integer)
+    currency = db.Column(db.String(10), default='INR')
+    description = db.Column(db.Text)
+    apply_url = db.Column(db.String(500))
+    logo_url = db.Column(db.String(500))
+    posted_days_ago = db.Column(db.Integer, default=0)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

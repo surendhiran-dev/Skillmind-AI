@@ -36,9 +36,10 @@ def get_stats():
     if latest_resume:
         skills = [s.skill_name for s in Skill.query.filter_by(resume_id=latest_resume.id).all()]
 
-    # Job Recommendations
-    from ..services.ai_service import generate_job_recommendations_llm
-    job_recommendations = generate_job_recommendations_llm(skills, report.final_score if report and hasattr(report, 'final_score') else 0)
+    # Job Recommendations (using the new module's service)
+    from ..services.jobs_service import get_recommendations
+    job_recommendations_data = get_recommendations(user_id)
+    job_recommendations = job_recommendations_data.get('jobs', []) if job_recommendations_data else []
 
     # Check for Interview Cooldown
     from datetime import datetime, timedelta
@@ -55,20 +56,27 @@ def get_stats():
             cooldown_active = True
             remaining_minutes = 30 - int(diff.total_seconds() / 60)
 
+    def _readiness_level(score):
+        if score >= 75: return "Strong"
+        if score >= 50: return "Moderate"
+        if score >= 30: return "Average"
+        return "Needs Improvement"
+
+    final_score = report.final_score if report else 0
     res = {
         "report": {
-            "final_score": report.final_score if report else 0,
+            "final_score": final_score,
             "quiz_score": report.quiz_score if report else 0,
             "coding_score": report.coding_score if report else 0,
             "interview_score": report.interview_score if report else 0,
             "resume_strength": report.resume_strength if report else 0,
-            "readiness_level": report.readiness_report if report else "Needs Improvement",
+            "readiness_level": _readiness_level(final_score),
             "marks": {
                 "resume": round(((report.resume_strength or 0) / 100) * 10, 1) if report else 0,
                 "quiz": round(((report.quiz_score or 0) / 100.0) * 30, 1) if report else 0,
                 "coding": round(((report.coding_score or 0) / 100.0) * 30, 1) if report else 0,
                 "interview": round(((report.interview_score or 0) / 100.0) * 30, 1) if report else 0,
-                "total": round(report.final_score or 0, 1) if report else 0
+                "total": round(final_score, 1) if report else 0
             },
             "analysis": report.skill_gaps if report and report.skill_gaps else [],
         } if report else None,
