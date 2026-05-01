@@ -216,17 +216,14 @@ def create_app():
         else:
             try:
                 import smtplib, ssl, socket
-                # Force IPv4 for health check too
-                addr_info = socket.getaddrinfo("smtp.gmail.com", 465, socket.AF_INET, socket.SOCK_STREAM)
-                ipv4_address = addr_info[0][4][0]
-                
-                ctx = ssl.create_default_context()
-                with smtplib.SMTP_SSL(ipv4_address, 465, context=ctx, timeout=15) as srv:
+                # Use Port 587 (STARTTLS) - much more likely to work on Render
+                with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as srv:
+                    srv.starttls()
                     srv.login(mail_user, mail_pass)
                 status['email'] = {
                     'status': '✅ Working',
                     'sender': mail_user,
-                    'mode': 'IPv4 SSL'
+                    'mode': 'Port 587 STARTTLS'
                 }
             except Exception as smtp_err:
                 status['email'] = {

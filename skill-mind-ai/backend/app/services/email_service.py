@@ -110,31 +110,25 @@ def send_otp_email(receiver_email, otp_code):
     message.attach(part2)
 
     try:
-        import socket
-        # Force IPv4 resolution for smtp.gmail.com
-        addr_info = socket.getaddrinfo("smtp.gmail.com", 465, socket.AF_INET, socket.SOCK_STREAM)
-        ipv4_address = addr_info[0][4][0]
-        print(f"[EMAIL SERVICE] Resolved smtp.gmail.com to IPv4: {ipv4_address}")
-
-        # Try Port 465 (SSL) with IPv4 and timeout
-        with smtplib.SMTP_SSL(ipv4_address, 465, timeout=20) as server:
+        # Try Port 587 (STARTTLS) first - This is the standard for cloud apps
+        print(f"[EMAIL SERVICE] Attempting STARTTLS connection to smtp.gmail.com:587...")
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+            server.starttls()
             server.login(sender_email, password)
             server.sendmail(sender_email, receiver_email, message.as_string())
-        print(f"[EMAIL SERVICE] OTP emailed successfully via IPv4 SSL to {receiver_email}")
+        print(f"[EMAIL SERVICE] OTP emailed successfully via STARTTLS to {receiver_email}")
         return True
     except Exception as e:
-        print(f"[EMAIL SERVICE] IPv4 SSL failed: {str(e)}. Trying Port 587...")
+        print(f"[EMAIL SERVICE] STARTTLS failed: {str(e)}. Trying Port 465 (SSL)...")
         try:
-            addr_info_587 = socket.getaddrinfo("smtp.gmail.com", 587, socket.AF_INET, socket.SOCK_STREAM)
-            ipv4_587 = addr_info_587[0][4][0]
-            with smtplib.SMTP(ipv4_587, 587, timeout=20) as server:
-                server.starttls()
+            # Fallback to Port 465 SSL
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
                 server.login(sender_email, password)
                 server.sendmail(sender_email, receiver_email, message.as_string())
-            print(f"[EMAIL SERVICE] OTP emailed via IPv4 STARTTLS to {receiver_email}")
+            print(f"[EMAIL SERVICE] OTP emailed via SSL fallback to {receiver_email}")
             return True
-        except Exception as starttls_e:
-            print(f"[EMAIL SERVICE] ALL IPv4 ATTEMPTS FAILED: {str(starttls_e)}")
+        except Exception as ssl_e:
+            print(f"[EMAIL SERVICE] ALL ATTEMPTS FAILED: {str(ssl_e)}")
             return False
 
 def send_cooldown_ready_email(receiver_email, user_name):
