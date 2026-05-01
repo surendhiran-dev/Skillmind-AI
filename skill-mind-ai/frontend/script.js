@@ -3,10 +3,10 @@
     console.log(">>> SKILLMIND FRONTEND RELOADED v2.5 (Dark Theme Enforced) <<<");
 
     // Dynamic API discovery: prefers localhost if currently on localhost, or uses the production Render URL
-    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-        ? 'http://127.0.0.1:5000' 
-        : 'https://skill-mind-ai-backend.onrender.com'; // Placeholder: update with your actual Render URL
-    
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://127.0.0.1:5000'
+        : 'https://skillmind-ai.onrender.com'; // Placeholder: update with your actual Render URL
+
     const API = API_URL;
     const socket = io(API_URL); // Initialize Socket.IO connection to backend
     let monacoEditor;
@@ -261,7 +261,7 @@
             const token = state.token || sessionStorage.getItem('token');
             let userId = state.user?.id;
             if (!userId && sessionStorage.getItem('user')) {
-                try { userId = JSON.parse(sessionStorage.getItem('user')).id; } catch (e) {}
+                try { userId = JSON.parse(sessionStorage.getItem('user')).id; } catch (e) { }
             }
             if (token && userId && typeof Interview !== 'undefined') {
                 Interview.init(token, userId);
@@ -651,14 +651,14 @@
                     statusEl.className = 'otp-status-icon';
                     return;
                 }
-                
+
                 if (sanitized.length === 6 && email) {
                     try {
                         const res = await api('/api/auth/verify-otp-instant', {
                             method: 'POST',
                             body: { email, otp: sanitized }
                         });
-                        
+
                         if (res.valid) {
                             statusEl.className = 'otp-status-icon valid';
                             if (onValid) onValid(); // Stop the timer if valid
@@ -679,7 +679,7 @@
                 $('#otpCountdown').style.display = 'none';
             }
         });
-        
+
         setupOtpValidation($('#resetOTP'), $('#resetOtpStatus'), $('#forgotEmail'), () => {
             if (resetOtpTimerInterval) {
                 clearInterval(resetOtpTimerInterval);
@@ -984,7 +984,7 @@
         const modal = $('#unifiedSettingsModal');
         if (modal) {
             modal.classList.add('hidden');
-            document.body.style.overflow = ''; 
+            document.body.style.overflow = '';
         }
 
         showView('authView');
@@ -1123,10 +1123,10 @@
     async function unifiedReportHandler() {
         // Open window immediately to avoid popup blockers (browsers prefer synchronous calls)
         const reportWindow = window.open('', '_blank');
-        
+
         const btn = $('#generateReportBtn');
         if (!btn) return;
-        
+
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span> Syncing...';
 
@@ -1140,7 +1140,7 @@
 
             // 1. Sync backend scores
             await api('/api/scoring/generate-report', { method: 'POST' });
-            
+
             // 2. Fetch latest stats
             btn.innerHTML = '<span class="spinner"></span> Building Report...';
             const data = await api('/api/dashboard/stats');
@@ -1148,12 +1148,12 @@
             if (!r) throw new Error('No assessment data found. Please complete all sections.');
 
             // 3. Update Dashboard Dashboard UI
-            loadDashboard(); 
+            loadDashboard();
 
             // Save report data to sessionStorage and open dedicated report page
             sessionStorage.setItem('reportData', JSON.stringify({
                 username: state.user.username,
-                date: new Date().toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'}),
+                date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }),
                 final_score: r.final_score || 0,
                 readiness_level: r.readiness_level || 'Needs Improvement',
                 marks: r.marks || {},
@@ -1218,11 +1218,11 @@
     function renderHistoryChart(data) {
         const ctx = document.getElementById('lineChart');
         if (!ctx) return;
-        
+
         const qH = data.quiz_history || [];
         const cH = data.coding_history || [];
         const iH = data.interview_history || [];
-        
+
         const maxLen = Math.max(qH.length, cH.length, iH.length);
         if (maxLen === 0) return;
 
@@ -1231,7 +1231,7 @@
         lineChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: Array.from({length: maxLen}, (_, i) => `Attempt ${i + 1}`),
+                labels: Array.from({ length: maxLen }, (_, i) => `Attempt ${i + 1}`),
                 datasets: [
                     {
                         label: 'Quiz',
@@ -2093,7 +2093,7 @@
             submitQuiz();
             return;
         }
-        
+
         const textAnswer = $('#answerInput').value.trim();
         const finalAnswer = q.options ? state.selectedOption : textAnswer;
 
@@ -2172,8 +2172,8 @@
         }
 
         const titleSnake = problem.title.toLowerCase().replace(/\s+/g, '_');
-        
-        switch(language) {
+
+        switch (language) {
             case 'javascript':
                 return `function ${titleSnake}(...args) {\n    // Write your solution here\n    return null;\n}\n`;
             case 'java':
@@ -2226,7 +2226,7 @@
                     'sql': 'SQL Query',
                     'go': 'Go'
                 };
-                langSelector.innerHTML = state.detectedLanguages.map(l => 
+                langSelector.innerHTML = state.detectedLanguages.map(l =>
                     `<option value="${l}">${langMap[l] || l}</option>`
                 ).join('');
                 langSelector.value = state.currentLanguage || 'python';
@@ -2243,17 +2243,17 @@
             $('#codingActive').classList.add('hidden');
         }
     }
-    
+
     function startCodingTimer() {
         stopCodingTimer();
-        state.codingTimeLeft = 600; 
+        state.codingTimeLeft = 600;
         updateCodingTimerUI();
-        
+
         state.codingTimerInterval = window.setInterval(() => {
             try {
                 state.codingTimeLeft--;
                 updateCodingTimerUI();
-                
+
                 if (state.codingTimeLeft <= 0) {
                     stopCodingTimer();
                     showToast('Time is up! Submitting your solution...', 'warning');
@@ -2407,11 +2407,10 @@
                 <div class="simple-console" style="color: #fff; font-family: 'Fira Code', monospace; font-size: 0.9rem; padding: 1.2rem;">
                     <div style="margin-bottom: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.6rem;">
                         <div style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 0.4rem; font-weight: 800;">[OUTPUT]</div>
-                        <pre style="margin: 0; color: #10b981; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.5;">${
-                            testResults.length > 0 ? 
-                            (testResults[0].actual.includes('Runtime Error') ? `<span style="color: #ef4444;">${testResults[0].actual}</span>` : testResults[0].actual) : 
-                            (data.syntax_message ? `<span style="color: #ef4444;">${data.syntax_message}</span>` : 'No output')
-                        }</pre>
+                        <pre style="margin: 0; color: #10b981; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.5;">${testResults.length > 0 ?
+                    (testResults[0].actual.includes('Runtime Error') ? `<span style="color: #ef4444;">${testResults[0].actual}</span>` : testResults[0].actual) :
+                    (data.syntax_message ? `<span style="color: #ef4444;">${data.syntax_message}</span>` : 'No output')
+                }</pre>
                     </div>
                     
                     <div style="display: flex; gap: 2rem; margin-bottom: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.6rem;">
@@ -2430,10 +2429,10 @@
                     <div>
                         <div style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 0.4rem; font-weight: 800;">[ERRORS]</div>
                         <div style="margin-top: 0.5rem;">
-                            ${errorLines.length > 0 ? 
-                                errorLines.map(err => `<div style="color: #ef4444; margin-bottom: 0.4rem; display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.85rem;"><i class="fas fa-exclamation-triangle" style="margin-top: 3px;"></i><span style="line-height: 1.4;">${err}</span></div>`).join('') : 
-                                '<div style="color: #10b981; display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem;"><i class="fas fa-check-circle"></i><span>All tests passed!</span></div>'
-                            }
+                            ${errorLines.length > 0 ?
+                    errorLines.map(err => `<div style="color: #ef4444; margin-bottom: 0.4rem; display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.85rem;"><i class="fas fa-exclamation-triangle" style="margin-top: 3px;"></i><span style="line-height: 1.4;">${err}</span></div>`).join('') :
+                    '<div style="color: #10b981; display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem;"><i class="fas fa-check-circle"></i><span>All tests passed!</span></div>'
+                }
                         </div>
                     </div>
                 </div>
@@ -2469,8 +2468,8 @@
                     finishCodingAssessment();
                 }
             } else {
-                showToast(testResults.every(t => t.passed) ? "All test cases passed!" : "Evaluation complete.", 
-                          testResults.every(t => t.passed) ? "success" : "info");
+                showToast(testResults.every(t => t.passed) ? "All test cases passed!" : "Evaluation complete.",
+                    testResults.every(t => t.passed) ? "success" : "info");
             }
         } catch (err) {
             outputEl.innerHTML = `<div style="color:#ef4444; padding:1rem;">Error: ${err.message || 'Submission failed'}</div>`;
@@ -2565,7 +2564,7 @@
                 const storedSub = state.codingSubmissions[idx];
                 const questionMarks = storedSub ? storedSub.marks : 0;
                 resultHtml += `<div class="mark-item" style="background:var(--glass); padding:10px; border-radius:8px;">
-                    <strong>Q${idx + 1}:</strong> ${challenge.title || 'Problem ' + (idx+1)} <br>
+                    <strong>Q${idx + 1}:</strong> ${challenge.title || 'Problem ' + (idx + 1)} <br>
                     <span style="color:var(--accent)">${questionMarks}/5 marks</span>
                 </div>`;
             });
@@ -2601,12 +2600,12 @@
                 const opt = select.options[select.selectedIndex];
                 const rawMaxLen = parseInt(opt.dataset.len) || 10;
                 const format = opt.dataset.format || '10 digits';
-                
+
                 // Adjust maxlength to account for spaces (approx 1 space per 3-4 digits)
                 const spaceCount = Math.floor(rawMaxLen / 3);
                 phoneInput.maxLength = rawMaxLen + spaceCount;
                 phoneInput.placeholder = `Enter ${format}`;
-                
+
                 // Initial format if loading data
                 formatAndSetPhone(phoneInput);
             }
@@ -2615,7 +2614,7 @@
         const formatAndSetPhone = (input) => {
             let val = input.value.replace(/\s/g, '').replace(/[^0-9]/g, '');
             let formatted = '';
-            
+
             // Basic grouping logic (3-3-4 or 4-4 depending on length)
             if (val.length > 0) {
                 if (val.length <= 8) {
@@ -2638,13 +2637,13 @@
         // Initialize single input listener
         const phoneInput = $('#profilePhone');
         if (phoneInput) {
-            phoneInput.addEventListener('input', function(e) {
+            phoneInput.addEventListener('input', function (e) {
                 // Save cursor position
                 let cursor = this.selectionStart;
                 const oldLen = this.value.length;
-                
+
                 formatAndSetPhone(this);
-                
+
                 // Adjust cursor position if a space was added
                 const newLen = this.value.length;
                 if (newLen > oldLen) cursor++;
@@ -2653,12 +2652,12 @@
         }
 
         $('#profileCountryCode')?.addEventListener('change', updatePhoneRules);
-        
+
         async function loadProfile() {
             try {
                 const data = await api('/api/profile/');
                 profileData = data;
-                
+
                 if (data.user) {
                     if ($('#profileFullName')) $('#profileFullName').value = data.user.full_name || '';
                     if ($('#profileEmail')) $('#profileEmail').value = data.user.email || '';
@@ -2666,12 +2665,12 @@
                     if ($('#profileBio')) $('#profileBio').value = data.user.bio || '';
                     if ($('#profileDisplayName')) $('#profileDisplayName').textContent = data.user.full_name || data.user.username;
                     if ($('#profileDisplayUsername')) $('#profileDisplayUsername').textContent = `@${data.user.username}`;
-                    
+
                     if (data.user.profile_photo) {
                         if ($('#profileAvatarPreview')) $('#profileAvatarPreview').src = data.user.profile_photo;
                         if ($('#navAvatarImg')) $('#navAvatarImg').src = data.user.profile_photo;
                     }
-                    
+
                     const greeting = $('#userGreeting');
                     if (greeting) greeting.textContent = data.user.full_name || data.user.username;
                 }
@@ -2703,7 +2702,7 @@
                     method: 'PUT',
                     body: payload
                 });
-                
+
                 if ($('#profileDisplayName')) $('#profileDisplayName').textContent = payload.full_name || payload.username;
                 if ($('#navAvatarImg')) $('#navAvatarImg').nextElementSibling.textContent = 'Profile';
 
@@ -2711,7 +2710,7 @@
                 const popup = $('#successPopupOverlay');
                 if (popup) {
                     popup.classList.add('show');
-                    
+
                     // Close settings modal QUICKLY (0.3s)
                     setTimeout(() => {
                         closeSettingsModal();
@@ -2786,15 +2785,15 @@
         // Sidebar Navigation Handling
         const settingsButtons = $$('.sidebar-item[data-settings-tab]');
         console.log(`initProfile: Found ${settingsButtons.length} settings sidebar buttons`);
-        
+
         settingsButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const tab = btn.dataset.settingsTab;
                 console.log(`Settings Tab Clicked: ${tab}`);
-                
+
                 settingsButtons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                
+
                 $$('.settings-section').forEach(s => s.classList.add('hidden'));
                 const target = $(`#${tab}Section`);
                 if (target) {
@@ -2826,86 +2825,86 @@
         // Interactive Sign Out Button Animation
         const signOutButtonStates = {
             'default': {
-              '--figure-duration': '100ms',
-              '--transform-figure': 'none',
-              '--walking-duration': '100ms',
-              '--transform-arm1': 'none',
-              '--transform-wrist1': 'none',
-              '--transform-arm2': 'none',
-              '--transform-wrist2': 'none',
-              '--transform-leg1': 'none',
-              '--transform-calf1': 'none',
-              '--transform-leg2': 'none',
-              '--transform-calf2': 'none'
+                '--figure-duration': '100ms',
+                '--transform-figure': 'none',
+                '--walking-duration': '100ms',
+                '--transform-arm1': 'none',
+                '--transform-wrist1': 'none',
+                '--transform-arm2': 'none',
+                '--transform-wrist2': 'none',
+                '--transform-leg1': 'none',
+                '--transform-calf1': 'none',
+                '--transform-leg2': 'none',
+                '--transform-calf2': 'none'
             },
             'hover': {
-              '--figure-duration': '100ms',
-              '--transform-figure': 'translateX(1.5px)',
-              '--walking-duration': '100ms',
-              '--transform-arm1': 'rotate(-5deg)',
-              '--transform-wrist1': 'rotate(-15deg)',
-              '--transform-arm2': 'rotate(5deg)',
-              '--transform-wrist2': 'rotate(6deg)',
-              '--transform-leg1': 'rotate(-10deg)',
-              '--transform-calf1': 'rotate(5deg)',
-              '--transform-leg2': 'rotate(20deg)',
-              '--transform-calf2': 'rotate(-20deg)'
+                '--figure-duration': '100ms',
+                '--transform-figure': 'translateX(1.5px)',
+                '--walking-duration': '100ms',
+                '--transform-arm1': 'rotate(-5deg)',
+                '--transform-wrist1': 'rotate(-15deg)',
+                '--transform-arm2': 'rotate(5deg)',
+                '--transform-wrist2': 'rotate(6deg)',
+                '--transform-leg1': 'rotate(-10deg)',
+                '--transform-calf1': 'rotate(5deg)',
+                '--transform-leg2': 'rotate(20deg)',
+                '--transform-calf2': 'rotate(-20deg)'
             },
             'walking1': {
-              '--figure-duration': '300ms',
-              '--transform-figure': 'translateX(11px)',
-              '--walking-duration': '300ms',
-              '--transform-arm1': 'translateX(-4px) translateY(-2px) rotate(120deg)',
-              '--transform-wrist1': 'rotate(-5deg)',
-              '--transform-arm2': 'translateX(4px) rotate(-110deg)',
-              '--transform-wrist2': 'rotate(-5deg)',
-              '--transform-leg1': 'translateX(-3px) rotate(80deg)',
-              '--transform-calf1': 'rotate(-30deg)',
-              '--transform-leg2': 'translateX(4px) rotate(-60deg)',
-              '--transform-calf2': 'rotate(20deg)'
+                '--figure-duration': '300ms',
+                '--transform-figure': 'translateX(11px)',
+                '--walking-duration': '300ms',
+                '--transform-arm1': 'translateX(-4px) translateY(-2px) rotate(120deg)',
+                '--transform-wrist1': 'rotate(-5deg)',
+                '--transform-arm2': 'translateX(4px) rotate(-110deg)',
+                '--transform-wrist2': 'rotate(-5deg)',
+                '--transform-leg1': 'translateX(-3px) rotate(80deg)',
+                '--transform-calf1': 'rotate(-30deg)',
+                '--transform-leg2': 'translateX(4px) rotate(-60deg)',
+                '--transform-calf2': 'rotate(20deg)'
             },
             'walking2': {
-              '--figure-duration': '400ms',
-              '--transform-figure': 'translateX(17px)',
-              '--walking-duration': '300ms',
-              '--transform-arm1': 'rotate(60deg)',
-              '--transform-wrist1': 'rotate(-15deg)',
-              '--transform-arm2': 'rotate(-45deg)',
-              '--transform-wrist2': 'rotate(6deg)',
-              '--transform-leg1': 'rotate(-5deg)',
-              '--transform-calf1': 'rotate(10deg)',
-              '--transform-leg2': 'rotate(10deg)',
-              '--transform-calf2': 'rotate(-20deg)'
+                '--figure-duration': '400ms',
+                '--transform-figure': 'translateX(17px)',
+                '--walking-duration': '300ms',
+                '--transform-arm1': 'rotate(60deg)',
+                '--transform-wrist1': 'rotate(-15deg)',
+                '--transform-arm2': 'rotate(-45deg)',
+                '--transform-wrist2': 'rotate(6deg)',
+                '--transform-leg1': 'rotate(-5deg)',
+                '--transform-calf1': 'rotate(10deg)',
+                '--transform-leg2': 'rotate(10deg)',
+                '--transform-calf2': 'rotate(-20deg)'
             },
             'falling1': {
-              '--figure-duration': '1600ms',
-              '--walking-duration': '400ms',
-              '--transform-arm1': 'rotate(-60deg)',
-              '--transform-wrist1': 'none',
-              '--transform-arm2': 'rotate(30deg)',
-              '--transform-wrist2': 'rotate(120deg)',
-              '--transform-leg1': 'rotate(-30deg)',
-              '--transform-calf1': 'rotate(-20deg)',
-              '--transform-leg2': 'rotate(20deg)'
+                '--figure-duration': '1600ms',
+                '--walking-duration': '400ms',
+                '--transform-arm1': 'rotate(-60deg)',
+                '--transform-wrist1': 'none',
+                '--transform-arm2': 'rotate(30deg)',
+                '--transform-wrist2': 'rotate(120deg)',
+                '--transform-leg1': 'rotate(-30deg)',
+                '--transform-calf1': 'rotate(-20deg)',
+                '--transform-leg2': 'rotate(20deg)'
             },
             'falling2': {
-              '--walking-duration': '300ms',
-              '--transform-arm1': 'rotate(-100deg)',
-              '--transform-arm2': 'rotate(-60deg)',
-              '--transform-wrist2': 'rotate(60deg)',
-              '--transform-leg1': 'rotate(80deg)',
-              '--transform-calf1': 'rotate(20deg)',
-              '--transform-leg2': 'rotate(-60deg)'
+                '--walking-duration': '300ms',
+                '--transform-arm1': 'rotate(-100deg)',
+                '--transform-arm2': 'rotate(-60deg)',
+                '--transform-wrist2': 'rotate(60deg)',
+                '--transform-leg1': 'rotate(80deg)',
+                '--transform-calf1': 'rotate(20deg)',
+                '--transform-leg2': 'rotate(-60deg)'
             },
             'falling3': {
-              '--walking-duration': '500ms',
-              '--transform-arm1': 'rotate(-30deg)',
-              '--transform-wrist1': 'rotate(40deg)',
-              '--transform-arm2': 'rotate(50deg)',
-              '--transform-wrist2': 'none',
-              '--transform-leg1': 'rotate(-30deg)',
-              '--transform-leg2': 'rotate(20deg)',
-              '--transform-calf2': 'none'
+                '--walking-duration': '500ms',
+                '--transform-arm1': 'rotate(-30deg)',
+                '--transform-wrist1': 'rotate(40deg)',
+                '--transform-arm2': 'rotate(50deg)',
+                '--transform-wrist2': 'none',
+                '--transform-leg1': 'rotate(-30deg)',
+                '--transform-leg2': 'rotate(20deg)',
+                '--transform-calf2': 'none'
             }
         };
 
@@ -2921,38 +2920,38 @@
         const btnSignOut = $('#sidebarSignOut');
         if (btnSignOut) {
             btnSignOut.state = 'default';
-            
+
             btnSignOut.addEventListener('mouseenter', () => {
                 if (btnSignOut.state === 'default') updateButtonState(btnSignOut, 'hover');
             });
             btnSignOut.addEventListener('mouseleave', () => {
                 if (btnSignOut.state === 'hover') updateButtonState(btnSignOut, 'default');
             });
-            
+
             btnSignOut.addEventListener('click', () => {
                 if (btnSignOut.state === 'default' || btnSignOut.state === 'hover') {
                     btnSignOut.classList.add('clicked');
                     updateButtonState(btnSignOut, 'walking1');
-                    
+
                     setTimeout(() => {
                         btnSignOut.classList.add('door-slammed');
                         updateButtonState(btnSignOut, 'walking2');
-                        
+
                         setTimeout(() => {
                             btnSignOut.classList.add('falling');
                             updateButtonState(btnSignOut, 'falling1');
-                            
+
                             setTimeout(() => {
                                 updateButtonState(btnSignOut, 'falling2');
-                                
+
                                 setTimeout(() => {
                                     updateButtonState(btnSignOut, 'falling3');
-                                    
+
                                     setTimeout(() => {
                                         // Execute actual sign out functionality AFTER animation completes
                                         signOut();
                                     }, 1000);
-                                    
+
                                 }, parseInt(signOutButtonStates['falling2']['--walking-duration']));
                             }, parseInt(signOutButtonStates['falling1']['--walking-duration']));
                         }, parseInt(signOutButtonStates['walking2']['--figure-duration']));
@@ -2967,9 +2966,9 @@
         const list = $('#historyList');
         if (!list) return;
         list.innerHTML = '';
-        
+
         const sortVal = $('#historySort')?.value || 'date-desc';
-        
+
         const history = [...(profileData.history[type] || [])].sort((a, b) => {
             if (sortVal === 'date-desc') return new Date(b.date) - new Date(a.date);
             if (sortVal === 'date-asc') return new Date(a.date) - new Date(b.date);
@@ -2988,7 +2987,7 @@
             div.className = 'history-item';
             div.style = 'display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-radius: 12px; background: rgba(255,255,255,0.03); margin-bottom: 0.8rem; border: 1px solid rgba(255,255,255,0.05);';
             const date = new Date(item.date).toLocaleDateString();
-            
+
             if (type === 'quizzes') {
                 div.innerHTML = `
                     <div class="history-item-left">
@@ -3057,19 +3056,19 @@
 
             // Show Typing Indicator
             const typingId = showTypingIndicator();
-            
+
             try {
                 // Use the standard api() helper
                 const data = await api('/api/support/chat', {
                     method: 'POST',
-                    body: { 
+                    body: {
                         message: text,
                         history: supportChatHistory // Send history for conversational context
                     }
                 });
 
                 removeTypingIndicator(typingId);
-                
+
                 if (data && data.response) {
                     appendChatMessage('ai', data.response);
                     // Update history (keep last 10 messages to avoid large payloads)
@@ -3152,8 +3151,8 @@
         const loader = document.createElement('script');
         loader.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js';
         loader.onload = () => {
-            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
-            require(['vs/editor/editor.main'], function() {
+            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+            require(['vs/editor/editor.main'], function () {
                 // Define Night Owl theme like image2
                 monaco.editor.defineTheme('night-owl', {
                     base: 'vs-dark',
