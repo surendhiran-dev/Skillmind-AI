@@ -179,7 +179,65 @@ def create_app():
             return jsonify({"message": f"File {filename} not found", "path": file_path}), 404
             
         return send_from_directory(frontend_dir, filename)
-    
+
+    # ── Health / Diagnostics endpoint ──────────────────────────────────────
+    @app.route('/api/health')
+    def health_check():
+        import smtplib, ssl
+        status = {}
+
+        # 1. Database check
+        try:
+            from sqlalchemy import text
+            result = db.session.execute(text('SELECT 1')).fetchone()
+            db_type = db_url.split('://')[0]
+            # Count tables and users
+            from .models.models import User
+            user_count = User.query.count()
+            status['database'] = {
+                'status': '✅ Connected',
+                'type': db_type,
+                'user_count': user_count
+            }
+        except Exception as db_err:
+            status['database'] = {
+                'status': '❌ FAILED',
+                'error': str(db_err)
+            }
+
+        # 2. Email / SMTP check
+        mail_user = os.getenv('MAIL_USERNAME', '')
+        mail_pass = os.getenv('MAIL_PASSWORD', '')
+        if not mail_user or not mail_pass:
+            status['email'] = {
+                'status': '❌ NOT CONFIGURED',
+                'hint': 'MAIL_USERNAME or MAIL_PASSWORD env var is missing on Render'
+            }
+        else:
+            try:
+                ctx = ssl.create_default_context()
+                with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as srv:
+                    srv.login(mail_user, mail_pass)
+                status['email'] = {
+                    'status': '✅ Working',
+                    'sender': mail_user
+                }
+            except Exception as smtp_err:
+                status['email'] = {
+                    'status': '❌ SMTP Login Failed',
+                    'error': str(smtp_err),
+                    'hint': 'Use a Gmail App Password, not your real password. Also allow access from https://myaccount.google.com/lesssecureapps'
+                }
+
+        # 3. AI key check
+        ai_key = os.getenv('OPENAI_API_KEY', '')
+        status['ai_key'] = '✅ Set' if ai_key else '❌ Missing'
+
+        # 4. Environment
+        status['environment'] = os.getenv('FLASK_ENV', 'production')
+
+        return jsonify({'health': status}), 200
+
     # Create tables on first run
     with app.app_context():
         db.create_all()
