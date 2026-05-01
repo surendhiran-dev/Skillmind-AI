@@ -110,25 +110,35 @@ def send_otp_email(receiver_email, otp_code):
     message.attach(part2)
 
     try:
-        # Use Port 465 with SSL for better reliability on cloud servers
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        # Try Port 465 (SSL) first with a specific timeout
+        print(f"[EMAIL SERVICE] Attempting SSL connection to smtp.gmail.com:465...")
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
             server.login(sender_email, password)
             server.sendmail(sender_email, receiver_email, message.as_string())
         print(f"[EMAIL SERVICE] OTP emailed successfully via SSL to {receiver_email}")
         return True
     except Exception as e:
-        print(f"[EMAIL SERVICE] SSL attempt failed: {str(e)}")
-        # Fallback to 587 if 465 fails
+        print(f"[EMAIL SERVICE] SSL failed: {str(e)}. Trying Port 587 (STARTTLS)...")
         try:
-            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            # Fallback to Port 587 with a longer timeout
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
                 server.starttls()
                 server.login(sender_email, password)
                 server.sendmail(sender_email, receiver_email, message.as_string())
-            print(f"[EMAIL SERVICE] OTP emailed via STARTTLS fallback to {receiver_email}")
+            print(f"[EMAIL SERVICE] OTP emailed via STARTTLS to {receiver_email}")
             return True
         except Exception as starttls_e:
-            print(f"[EMAIL SERVICE] CRITICAL: Both SSL and STARTTLS failed: {str(starttls_e)}")
-            return False
+            print(f"[EMAIL SERVICE] STARTTLS also failed: {str(starttls_e)}. Trying alternative server...")
+            try:
+                # Last resort: try smtp.googlemail.com (sometimes works better on cloud IPs)
+                with smtplib.SMTP_SSL("smtp.googlemail.com", 465, timeout=10) as server:
+                    server.login(sender_email, password)
+                    server.sendmail(sender_email, receiver_email, message.as_string())
+                print(f"[EMAIL SERVICE] OTP emailed via googlemail fallback to {receiver_email}")
+                return True
+            except Exception as last_e:
+                print(f"[EMAIL SERVICE] ALL ATTEMPTS FAILED: {str(last_e)}")
+                return False
 def send_cooldown_ready_email(receiver_email, user_name):
     sender_email = os.getenv('MAIL_USERNAME')
     password = os.getenv('MAIL_PASSWORD')
