@@ -110,9 +110,9 @@ def send_otp_email(receiver_email, otp_code):
     message.attach(part2)
 
     try:
-        # Use Brevo SMTP Relay - Guaranteed to work on Render
-        print(f"[EMAIL SERVICE] Attempting connection to Brevo (smtp-relay.brevo.com)...")
-        with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=15) as server:
+        # Use Port 2525 - The "unblockable" port for cloud servers
+        print(f"[EMAIL SERVICE] Attempting connection to Brevo on Port 2525...")
+        with smtplib.SMTP("smtp-relay.brevo.com", 2525, timeout=15) as server:
             server.starttls()
             server.login(sender_email, password)
             server.sendmail(sender_email, receiver_email, message.as_string())

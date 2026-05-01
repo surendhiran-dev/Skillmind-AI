@@ -216,8 +216,8 @@ def create_app():
         else:
             try:
                 import smtplib
-                # Use Brevo (Standard for Render apps)
-                with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=15) as srv:
+                # Use Port 2525 - The "unblockable" port for cloud servers
+                with smtplib.SMTP("smtp-relay.brevo.com", 2525, timeout=15) as srv:
                     srv.starttls()
                     srv.login(mail_user, mail_pass)
                 status['email'] = {
