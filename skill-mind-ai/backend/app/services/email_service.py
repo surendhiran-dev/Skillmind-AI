@@ -110,25 +110,24 @@ def send_otp_email(receiver_email, otp_code):
     message.attach(part2)
 
     try:
-        # Use port 587 with STARTTLS for better compatibility
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.set_debuglevel(1) # Enable debug output for terminal logs
-            server.starttls()
+        # Use Port 465 with SSL for better reliability on cloud servers
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(sender_email, password)
             server.sendmail(sender_email, receiver_email, message.as_string())
-        print(f"[EMAIL SERVICE] OTP emailed successfully to {receiver_email}")
+        print(f"[EMAIL SERVICE] OTP emailed successfully via SSL to {receiver_email}")
         return True
     except Exception as e:
-        print(f"[EMAIL SERVICE] CRITICAL ERROR: {str(e)}")
-        # If STARTTLS fails, try fallback to SSL on 465
+        print(f"[EMAIL SERVICE] SSL attempt failed: {str(e)}")
+        # Fallback to 587 if 465 fails
         try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.starttls()
                 server.login(sender_email, password)
                 server.sendmail(sender_email, receiver_email, message.as_string())
-            print(f"[EMAIL SERVICE] OTP emailed via SSL fallback to {receiver_email}")
+            print(f"[EMAIL SERVICE] OTP emailed via STARTTLS fallback to {receiver_email}")
             return True
-        except Exception as ssl_e:
-            print(f"[EMAIL SERVICE] Fallback SSL also failed: {str(ssl_e)}")
+        except Exception as starttls_e:
+            print(f"[EMAIL SERVICE] CRITICAL: Both SSL and STARTTLS failed: {str(starttls_e)}")
             return False
 def send_cooldown_ready_email(receiver_email, user_name):
     sender_email = os.getenv('MAIL_USERNAME')
