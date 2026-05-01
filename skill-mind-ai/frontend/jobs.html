@@ -1074,7 +1074,9 @@
     if (performance.getEntriesByType("navigation")[0].type === "reload") {
       window.location.href = "/";
     }
-    const API = '';
+    const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+      ? '' 
+      : 'https://skill-mind-ai-backend.onrender.com'; // Update with your actual Render URL
     let allJobs = [], visibleCount = 10, candidateData = {};
 
     function getLogoHTML(company, url) {

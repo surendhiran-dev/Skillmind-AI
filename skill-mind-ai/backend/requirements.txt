@@ -8,5 +8,7 @@ werkzeug
 PyPDF2
 openai
 anthropic
-eventlet
 numpy
+gunicorn
+gevent
+gevent-websocket

@@ -11,7 +11,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 db = SQLAlchemy()
 jwt = JWTManager()
-socketio = SocketIO(cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
 
 def create_app():
     app = Flask(__name__)
@@ -27,8 +27,10 @@ def create_app():
     db.init_app(app)
     jwt.init_app(app)
     socketio.init_app(app)
+    # CORS Configuration
+    allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
     CORS(app, resources={r"/api/*": {
-        "origins": "*",
+        "origins": allowed_origins,
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin"]
     }})

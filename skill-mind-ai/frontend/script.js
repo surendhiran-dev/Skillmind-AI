@@ -2,9 +2,13 @@
     'use strict';
     console.log(">>> SKILLMIND FRONTEND RELOADED v2.5 (Dark Theme Enforced) <<<");
 
-    // Dynamic API discovery: prefers localhost if currently on localhost, or uses 127.0.0.1 as default
-    const API = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'http://127.0.0.1:5000';
-    const socket = io('http://127.0.0.1:5000'); // Initialize Socket.IO connection to backend
+    // Dynamic API discovery: prefers localhost if currently on localhost, or uses the production Render URL
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+        ? 'http://127.0.0.1:5000' 
+        : 'https://skill-mind-ai-backend.onrender.com'; // Placeholder: update with your actual Render URL
+    
+    const API = API_URL;
+    const socket = io(API_URL); // Initialize Socket.IO connection to backend
     let monacoEditor;
 
     /* ===== State ===== */
