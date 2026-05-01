@@ -215,18 +215,24 @@ def create_app():
             }
         else:
             try:
+                import smtplib, ssl, socket
+                # Force IPv4 for health check too
+                addr_info = socket.getaddrinfo("smtp.gmail.com", 465, socket.AF_INET, socket.SOCK_STREAM)
+                ipv4_address = addr_info[0][4][0]
+                
                 ctx = ssl.create_default_context()
-                with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as srv:
+                with smtplib.SMTP_SSL(ipv4_address, 465, context=ctx, timeout=15) as srv:
                     srv.login(mail_user, mail_pass)
                 status['email'] = {
                     'status': '✅ Working',
-                    'sender': mail_user
+                    'sender': mail_user,
+                    'mode': 'IPv4 SSL'
                 }
             except Exception as smtp_err:
                 status['email'] = {
                     'status': '❌ SMTP Login Failed',
                     'error': str(smtp_err),
-                    'hint': 'Use a Gmail App Password, not your real password. Also allow access from https://myaccount.google.com/lesssecureapps'
+                    'hint': 'If it says Network is unreachable, Render is blocking Gmail. You must use a service like Brevo or SendGrid.'
                 }
 
         # 3. AI key check
