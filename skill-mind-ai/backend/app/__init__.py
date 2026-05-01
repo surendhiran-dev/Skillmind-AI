@@ -215,21 +215,21 @@ def create_app():
             }
         else:
             try:
-                import smtplib, ssl, socket
-                # Use Port 587 (STARTTLS) - much more likely to work on Render
-                with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as srv:
+                import smtplib
+                # Use Brevo (Standard for Render apps)
+                with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=15) as srv:
                     srv.starttls()
                     srv.login(mail_user, mail_pass)
                 status['email'] = {
                     'status': '✅ Working',
                     'sender': mail_user,
-                    'mode': 'Port 587 STARTTLS'
+                    'mode': 'Brevo SMTP'
                 }
             except Exception as smtp_err:
                 status['email'] = {
                     'status': '❌ SMTP Login Failed',
                     'error': str(smtp_err),
-                    'hint': 'If it says Network is unreachable, Render is blocking Gmail. You must use a service like Brevo or SendGrid.'
+                    'hint': 'Make sure you are using your Brevo SMTP Key, not your Brevo account password.'
                 }
 
         # 3. AI key check

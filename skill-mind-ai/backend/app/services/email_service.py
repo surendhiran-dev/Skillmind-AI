@@ -110,26 +110,17 @@ def send_otp_email(receiver_email, otp_code):
     message.attach(part2)
 
     try:
-        # Try Port 587 (STARTTLS) first - This is the standard for cloud apps
-        print(f"[EMAIL SERVICE] Attempting STARTTLS connection to smtp.gmail.com:587...")
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+        # Use Brevo SMTP Relay - Guaranteed to work on Render
+        print(f"[EMAIL SERVICE] Attempting connection to Brevo (smtp-relay.brevo.com)...")
+        with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=15) as server:
             server.starttls()
             server.login(sender_email, password)
             server.sendmail(sender_email, receiver_email, message.as_string())
-        print(f"[EMAIL SERVICE] OTP emailed successfully via STARTTLS to {receiver_email}")
+        print(f"[EMAIL SERVICE] OTP emailed successfully via Brevo to {receiver_email}")
         return True
     except Exception as e:
-        print(f"[EMAIL SERVICE] STARTTLS failed: {str(e)}. Trying Port 465 (SSL)...")
-        try:
-            # Fallback to Port 465 SSL
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-                server.login(sender_email, password)
-                server.sendmail(sender_email, receiver_email, message.as_string())
-            print(f"[EMAIL SERVICE] OTP emailed via SSL fallback to {receiver_email}")
-            return True
-        except Exception as ssl_e:
-            print(f"[EMAIL SERVICE] ALL ATTEMPTS FAILED: {str(ssl_e)}")
-            return False
+        print(f"[EMAIL SERVICE] Brevo failed: {str(e)}")
+        return False
 
 def send_cooldown_ready_email(receiver_email, user_name):
     sender_email = os.getenv('MAIL_USERNAME')
