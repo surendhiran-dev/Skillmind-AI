@@ -57,6 +57,7 @@ def register():
 
 @auth_bp.route('/send-otp', methods=['POST'])
 def send_otp():
+    import threading
     data = request.get_json()
     email = data.get('email')
     if not email:
@@ -71,11 +72,8 @@ def send_otp():
     db.session.add(new_otp)
     db.session.commit()
     
-    # Simulate sending email
-    print(f"\n[OTP SYSTEM] Sent OTP {otp_code} to {email}")
-    
-    # Actually send email
-    send_otp_email(email, otp_code)
+    # Send email in a background thread so the user doesn't wait
+    threading.Thread(target=send_otp_email, args=(email, otp_code)).start()
     
     return jsonify({"message": "OTP sent successfully"}), 200
 
@@ -158,8 +156,9 @@ def forgot_password():
     db.session.add(new_otp)
     db.session.commit()
     
-    # Actually send email
-    send_otp_email(email, otp_code)
+    # Send email in a background thread
+    import threading
+    threading.Thread(target=send_otp_email, args=(email, otp_code)).start()
     
     return jsonify({"message": "Password reset OTP sent to your email"}), 200
 
