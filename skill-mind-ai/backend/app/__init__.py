@@ -18,10 +18,26 @@ def create_app():
     
     # Configuration
     basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f'sqlite:///{os.path.join(basedir, "..", "skill_mind.db")}')
+    db_url = os.getenv('DATABASE_URL', f'sqlite:///{os.path.join(basedir, "..", "skill_mind.db")}')
+    
+    # Fix Railway/Render MySQL URL if needed
+    if db_url.startswith('mysql://'):
+        db_url = db_url.replace('mysql://', 'mysql+pymysql://', 1)
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key')
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 60 * 60 * 24 * 7 # 7 days
+    
+    # MySQL engine options (connection pooling + charset)
+    if 'mysql' in db_url:
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'pool_recycle': 280,          # recycle connections before MySQL 5-min timeout
+            'pool_pre_ping': True,        # check connection health before using
+            'connect_args': {
+                'charset': 'utf8mb4',
+            }
+        }
     
     # Initialize extensions
     db.init_app(app)

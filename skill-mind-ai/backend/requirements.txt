@@ -12,3 +12,5 @@ numpy
 gunicorn
 gevent
 gevent-websocket
+PyMySQL
+cryptography
