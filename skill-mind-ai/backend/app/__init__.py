@@ -205,33 +205,55 @@ def create_app():
                 'error': str(db_err)
             }
 
-        # 2. Email / SMTP check
-        mail_user = os.getenv('MAIL_USERNAME', '')
-        mail_pass = os.getenv('MAIL_PASSWORD', '')
-        if not mail_user or not mail_pass:
-            status['email'] = {
-                'status': '❌ NOT CONFIGURED',
-                'hint': 'MAIL_USERNAME or MAIL_PASSWORD env var is missing'
-            }
-        else:
+        # 2. Email provider check
+        resend_key = os.getenv('RESEND_API_KEY', '').strip()
+        mail_user  = os.getenv('MAIL_USERNAME', '').strip()
+        mail_pass  = os.getenv('MAIL_PASSWORD', '').strip()
+
+        if resend_key:
+            # Verify Resend API key with a lightweight ping
+            import urllib.request, urllib.error, json as _json
+            try:
+                req = urllib.request.Request(
+                    'https://api.resend.com/domains',
+                    headers={'Authorization': f'Bearer {resend_key}'},
+                    method='GET'
+                )
+                with urllib.request.urlopen(req, timeout=10) as r:
+                    code = r.status
+                status['email'] = {
+                    'status': '✅ Working',
+                    'mode': 'Resend API (HTTP)',
+                    'hint': 'RESEND_API_KEY is set and valid'
+                }
+            except Exception as re_err:
+                status['email'] = {
+                    'status': '❌ Resend API Error',
+                    'error': str(re_err),
+                    'hint': 'Check RESEND_API_KEY value in environment variables'
+                }
+        elif mail_user and mail_pass:
             try:
                 import smtplib
                 with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as srv:
-                    srv.ehlo()
-                    srv.starttls()
-                    srv.ehlo()
+                    srv.ehlo(); srv.starttls(); srv.ehlo()
                     srv.login(mail_user, mail_pass)
                 status['email'] = {
                     'status': '✅ Working',
                     'sender': mail_user,
-                    'mode': 'Gmail SMTP'
+                    'mode': 'Gmail SMTP (local only — set RESEND_API_KEY for Render)'
                 }
             except Exception as smtp_err:
                 status['email'] = {
-                    'status': '❌ SMTP Login Failed',
+                    'status': '❌ Gmail SMTP Failed',
                     'error': str(smtp_err),
-                    'hint': 'Make sure MAIL_PASSWORD is a Gmail App Password (not your account password).'
+                    'hint': 'Gmail blocks cloud IPs. Set RESEND_API_KEY for production.'
                 }
+        else:
+            status['email'] = {
+                'status': '❌ NOT CONFIGURED',
+                'hint': 'Set RESEND_API_KEY (production) or MAIL_USERNAME + MAIL_PASSWORD (local)'
+            }
 
         # 3. AI key check
         ai_key = os.getenv('OPENAI_API_KEY', '')
