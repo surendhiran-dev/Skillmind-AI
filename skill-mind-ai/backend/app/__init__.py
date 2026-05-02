@@ -211,8 +211,7 @@ def create_app():
         mail_pass  = os.getenv('MAIL_PASSWORD', '').strip()
 
         if resend_key:
-            # Verify Resend API key with a lightweight ping
-            import urllib.request, urllib.error, json as _json
+            import urllib.request, urllib.error
             try:
                 req = urllib.request.Request(
                     'https://api.resend.com/domains',
@@ -220,17 +219,39 @@ def create_app():
                     method='GET'
                 )
                 with urllib.request.urlopen(req, timeout=10) as r:
-                    code = r.status
+                    pass  # 200 OK — full-access key
                 status['email'] = {
                     'status': '✅ Working',
-                    'mode': 'Resend API (HTTP)',
-                    'hint': 'RESEND_API_KEY is set and valid'
+                    'mode': 'Resend API (Full Access key)',
+                    'sender': os.getenv('RESEND_FROM', 'onboarding@resend.dev')
                 }
+            except urllib.error.HTTPError as he:
+                if he.code == 403:
+                    # 403 = valid key but "Sending Access" scope only (no domain listing)
+                    # This is perfectly fine for sending OTP emails
+                    status['email'] = {
+                        'status': '✅ Working',
+                        'mode': 'Resend API (Sending Access key)',
+                        'sender': os.getenv('RESEND_FROM', 'onboarding@resend.dev'),
+                        'note': 'Sending scope key — emails will be sent normally'
+                    }
+                elif he.code == 401:
+                    status['email'] = {
+                        'status': '❌ Invalid RESEND_API_KEY',
+                        'error': 'Unauthorized — key is wrong or expired',
+                        'hint': 'Re-create the API key at resend.com → Settings → API Keys'
+                    }
+                else:
+                    status['email'] = {
+                        'status': '❌ Resend API Error',
+                        'error': f'HTTP {he.code}: {he.reason}',
+                        'hint': 'Check RESEND_API_KEY in Render environment variables'
+                    }
             except Exception as re_err:
                 status['email'] = {
-                    'status': '❌ Resend API Error',
+                    'status': '❌ Resend Connection Failed',
                     'error': str(re_err),
-                    'hint': 'Check RESEND_API_KEY value in environment variables'
+                    'hint': 'Network error contacting Resend API'
                 }
         elif mail_user and mail_pass:
             try:
