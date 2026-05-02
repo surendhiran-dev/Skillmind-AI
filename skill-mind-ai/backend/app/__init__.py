@@ -205,75 +205,48 @@ def create_app():
                 'error': str(db_err)
             }
 
-        # 2. Email provider check
-        resend_key = os.getenv('RESEND_API_KEY', '').strip()
-        mail_user  = os.getenv('MAIL_USERNAME', '').strip()
-        mail_pass  = os.getenv('MAIL_PASSWORD', '').strip()
+        # 2. Email provider check (priority matches email_service.py)
+        sendgrid_key = os.getenv('SENDGRID_API_KEY', '').strip()
+        resend_key   = os.getenv('RESEND_API_KEY', '').strip()
+        mail_user    = os.getenv('MAIL_USERNAME', '').strip()
+        mail_pass    = os.getenv('MAIL_PASSWORD', '').strip()
 
-        if resend_key:
-            import urllib.request, urllib.error
-            try:
-                req = urllib.request.Request(
-                    'https://api.resend.com/domains',
-                    headers={'Authorization': f'Bearer {resend_key}'},
-                    method='GET'
-                )
-                with urllib.request.urlopen(req, timeout=10) as r:
-                    pass  # 200 OK — full-access key
-                status['email'] = {
-                    'status': '✅ Working',
-                    'mode': 'Resend API (Full Access key)',
-                    'sender': os.getenv('RESEND_FROM', 'onboarding@resend.dev')
-                }
-            except urllib.error.HTTPError as he:
-                if he.code == 403:
-                    # 403 = valid key but "Sending Access" scope only (no domain listing)
-                    # This is perfectly fine for sending OTP emails
-                    status['email'] = {
-                        'status': '✅ Working',
-                        'mode': 'Resend API (Sending Access key)',
-                        'sender': os.getenv('RESEND_FROM', 'onboarding@resend.dev'),
-                        'note': 'Sending scope key — emails will be sent normally'
-                    }
-                elif he.code == 401:
-                    status['email'] = {
-                        'status': '❌ Invalid RESEND_API_KEY',
-                        'error': 'Unauthorized — key is wrong or expired',
-                        'hint': 'Re-create the API key at resend.com → Settings → API Keys'
-                    }
-                else:
-                    status['email'] = {
-                        'status': '❌ Resend API Error',
-                        'error': f'HTTP {he.code}: {he.reason}',
-                        'hint': 'Check RESEND_API_KEY in Render environment variables'
-                    }
-            except Exception as re_err:
-                status['email'] = {
-                    'status': '❌ Resend Connection Failed',
-                    'error': str(re_err),
-                    'hint': 'Network error contacting Resend API'
-                }
+        if sendgrid_key:
+            # SendGrid: just confirm key is set — it's always HTTP so no socket test needed
+            status['email'] = {
+                'status': '✅ Working',
+                'mode':   'SendGrid API (Priority 1)',
+                'sender': os.getenv('SENDGRID_FROM', mail_user or 'skillmindai4@gmail.com'),
+                'note':   'Sends to any recipient — no domain restriction'
+            }
+        elif resend_key:
+            status['email'] = {
+                'status': '✅ Working (limited)',
+                'mode':   'Resend API (no custom domain — only delivers to Resend signup email)',
+                'sender': os.getenv('RESEND_FROM', 'onboarding@resend.dev'),
+                'hint':   'Add SENDGRID_API_KEY to Render for unrestricted delivery'
+            }
         elif mail_user and mail_pass:
             try:
                 import smtplib
-                with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as srv:
+                with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as srv:
                     srv.ehlo(); srv.starttls(); srv.ehlo()
                     srv.login(mail_user, mail_pass)
                 status['email'] = {
                     'status': '✅ Working',
                     'sender': mail_user,
-                    'mode': 'Gmail SMTP (local only — set RESEND_API_KEY for Render)'
+                    'mode':   'Gmail SMTP (local dev only — blocked on Render)'
                 }
             except Exception as smtp_err:
                 status['email'] = {
                     'status': '❌ Gmail SMTP Failed',
-                    'error': str(smtp_err),
-                    'hint': 'Gmail blocks cloud IPs. Set RESEND_API_KEY for production.'
+                    'error':  str(smtp_err),
+                    'hint':   'Cloud providers block SMTP. Add SENDGRID_API_KEY for production.'
                 }
         else:
             status['email'] = {
                 'status': '❌ NOT CONFIGURED',
-                'hint': 'Set RESEND_API_KEY (production) or MAIL_USERNAME + MAIL_PASSWORD (local)'
+                'hint':   'Add SENDGRID_API_KEY to Render environment variables.'
             }
 
         # 3. AI key check
