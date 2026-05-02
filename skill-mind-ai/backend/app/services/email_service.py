@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  SHARED HTML TEMPLATES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -180,18 +181,70 @@ def _cooldown_html(user_name: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  TRANSPORT LAYER — auto-selects provider based on env vars
+#  TRANSPORT LAYER — Priority: SendGrid → Resend → Gmail SMTP
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _send_via_sendgrid(to_email: str, subject: str, html_body: str, text_body: str) -> bool:
+    """
+    Priority 1 — SendGrid HTTP API.
+    Free: 100 emails/day. Works with Single Sender Verification (no custom domain needed).
+    After verifying skillmindai4@gmail.com, can send to ANY recipient email.
+    Setup: https://signup.sendgrid.com → Settings → Sender Authentication → Single Sender
+    """
+    api_key    = os.getenv('SENDGRID_API_KEY', '').strip()
+    from_email = os.getenv('SENDGRID_FROM', os.getenv('MAIL_USERNAME', '')).strip()
+    from_name  = 'Skill Mind AI'
+
+    if not api_key:
+        return False
+    if not from_email:
+        print("[EMAIL SERVICE] SENDGRID_FROM or MAIL_USERNAME not set.")
+        return False
+
+    payload = json.dumps({
+        "personalizations": [{"to": [{"email": to_email}]}],
+        "from": {"email": from_email, "name": from_name},
+        "subject": subject,
+        "content": [
+            {"type": "text/plain", "value": text_body},
+            {"type": "text/html",  "value": html_body},
+        ]
+    }).encode('utf-8')
+
+    req = urllib.request.Request(
+        'https://api.sendgrid.com/v3/mail/send',
+        data=payload,
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json',
+        },
+        method='POST'
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            # SendGrid returns HTTP 202 Accepted on success (empty body)
+            if resp.status == 202:
+                print(f"[EMAIL SERVICE] ✅ Sent via SendGrid to {to_email}")
+                return True
+            print(f"[EMAIL SERVICE] SendGrid unexpected status {resp.status}")
+            return False
+    except urllib.error.HTTPError as e:
+        print(f"[EMAIL SERVICE] SendGrid error {e.code}: {e.read().decode('utf-8')}")
+        return False
+    except Exception as e:
+        print(f"[EMAIL SERVICE] SendGrid exception: {str(e)}")
+        return False
+
 
 def _send_via_resend(to_email: str, subject: str, html_body: str) -> bool:
     """
-    Send email via Resend HTTP API (works on all cloud platforms including Render).
-    Requires RESEND_API_KEY in environment variables.
-    Sign up free at https://resend.com — 3 000 emails / month free.
+    Priority 2 — Resend HTTP API.
+    WARNING: Without a verified custom domain, Resend can only send
+    to the email used to create the Resend account (test restriction).
     """
     api_key = os.getenv('RESEND_API_KEY', '').strip()
     if not api_key:
-        print("[EMAIL SERVICE] RESEND_API_KEY not set — cannot use Resend.")
         return False
 
     from_addr = os.getenv('RESEND_FROM', 'Skill Mind AI <onboarding@resend.dev>')
@@ -215,52 +268,42 @@ def _send_via_resend(to_email: str, subject: str, html_body: str) -> bool:
 
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            status = resp.status
-            body = resp.read().decode('utf-8')
-        if status in (200, 201):
-            print(f"[EMAIL SERVICE] ✅ Email sent via Resend to {to_email}")
-            return True
-        else:
-            print(f"[EMAIL SERVICE] Resend returned status {status}: {body}")
+            if resp.status in (200, 201):
+                print(f"[EMAIL SERVICE] ✅ Sent via Resend to {to_email}")
+                return True
+            print(f"[EMAIL SERVICE] Resend status {resp.status}")
             return False
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode('utf-8')
-        print(f"[EMAIL SERVICE] Resend HTTP error {e.code}: {error_body}")
+        print(f"[EMAIL SERVICE] Resend error {e.code}: {e.read().decode('utf-8')}")
         return False
     except Exception as e:
-        print(f"[EMAIL SERVICE] Resend request failed: {str(e)}")
+        print(f"[EMAIL SERVICE] Resend exception: {str(e)}")
         return False
 
 
 def _send_via_gmail_smtp(to_email: str, subject: str, html_body: str, text_body: str) -> bool:
-    """
-    Send email via Gmail SMTP (port 587 / STARTTLS).
-    Works perfectly locally. On Render/cloud, Gmail may block datacenter IPs —
-    use Resend instead by setting RESEND_API_KEY.
-    """
+    """Priority 3 — Gmail SMTP. Local dev only. Render/cloud blocks SMTP outbound."""
     sender_email = os.getenv('MAIL_USERNAME', '').strip()
-    password = os.getenv('MAIL_PASSWORD', '').strip()
+    password     = os.getenv('MAIL_PASSWORD', '').strip()
 
     if not sender_email or not password:
-        print("[EMAIL SERVICE] ERROR: MAIL_USERNAME or MAIL_PASSWORD not set in .env")
+        print("[EMAIL SERVICE] MAIL_USERNAME or MAIL_PASSWORD not set.")
         return False
 
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
-    message["From"] = f"Skill Mind AI <{sender_email}>"
-    message["To"] = to_email
+    message["From"]    = f"Skill Mind AI <{sender_email}>"
+    message["To"]      = to_email
     message.attach(MIMEText(text_body, "plain"))
     message.attach(MIMEText(html_body, "html"))
 
     try:
-        print(f"[EMAIL SERVICE] Attempting Gmail SMTP (smtp.gmail.com:587) → {to_email}")
+        print(f"[EMAIL SERVICE] Gmail SMTP → {to_email}")
         with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
+            server.ehlo(); server.starttls(); server.ehlo()
             server.login(sender_email, password)
             server.sendmail(sender_email, to_email, message.as_string())
-        print(f"[EMAIL SERVICE] ✅ Email sent via Gmail SMTP to {to_email}")
+        print(f"[EMAIL SERVICE] ✅ Sent via Gmail SMTP to {to_email}")
         return True
     except Exception as e:
         print(f"[EMAIL SERVICE] Gmail SMTP failed: {str(e)}")
@@ -268,19 +311,17 @@ def _send_via_gmail_smtp(to_email: str, subject: str, html_body: str, text_body:
 
 
 def _send_email(to_email: str, subject: str, html_body: str, text_body: str) -> bool:
-    """
-    Smart transport selector:
-      • If RESEND_API_KEY is set → use Resend (recommended for Render/production)
-      • Otherwise              → use Gmail SMTP (recommended for local development)
-    """
-    resend_key = os.getenv('RESEND_API_KEY', '').strip()
+    """Auto-selects provider: SendGrid → Resend → Gmail SMTP."""
+    if os.getenv('SENDGRID_API_KEY', '').strip():
+        print("[EMAIL SERVICE] Provider: SendGrid")
+        return _send_via_sendgrid(to_email, subject, html_body, text_body)
 
-    if resend_key:
-        print("[EMAIL SERVICE] Provider: Resend API")
+    if os.getenv('RESEND_API_KEY', '').strip():
+        print("[EMAIL SERVICE] Provider: Resend")
         return _send_via_resend(to_email, subject, html_body)
-    else:
-        print("[EMAIL SERVICE] Provider: Gmail SMTP")
-        return _send_via_gmail_smtp(to_email, subject, html_body, text_body)
+
+    print("[EMAIL SERVICE] Provider: Gmail SMTP (local fallback)")
+    return _send_via_gmail_smtp(to_email, subject, html_body, text_body)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
