@@ -110,16 +110,17 @@ def send_otp_email(receiver_email, otp_code):
     message.attach(part2)
 
     try:
-        # Use Port 2525 - The "unblockable" port for cloud servers
-        print(f"[EMAIL SERVICE] Attempting connection to Brevo on Port 2525...")
-        with smtplib.SMTP("smtp-relay.brevo.com", 2525, timeout=15) as server:
+        print(f"[EMAIL SERVICE] Attempting connection to Gmail SMTP on port 587...")
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+            server.ehlo()
             server.starttls()
+            server.ehlo()
             server.login(sender_email, password)
             server.sendmail(sender_email, receiver_email, message.as_string())
-        print(f"[EMAIL SERVICE] OTP emailed successfully via Brevo to {receiver_email}")
+        print(f"[EMAIL SERVICE] OTP emailed successfully via Gmail to {receiver_email}")
         return True
     except Exception as e:
-        print(f"[EMAIL SERVICE] Brevo failed: {str(e)}")
+        print(f"[EMAIL SERVICE] Gmail SMTP failed: {str(e)}")
         return False
 
 def send_cooldown_ready_email(receiver_email, user_name):

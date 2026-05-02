@@ -211,25 +211,26 @@ def create_app():
         if not mail_user or not mail_pass:
             status['email'] = {
                 'status': '❌ NOT CONFIGURED',
-                'hint': 'MAIL_USERNAME or MAIL_PASSWORD env var is missing on Render'
+                'hint': 'MAIL_USERNAME or MAIL_PASSWORD env var is missing'
             }
         else:
             try:
                 import smtplib
-                # Use Port 2525 - The "unblockable" port for cloud servers
-                with smtplib.SMTP("smtp-relay.brevo.com", 2525, timeout=15) as srv:
+                with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as srv:
+                    srv.ehlo()
                     srv.starttls()
+                    srv.ehlo()
                     srv.login(mail_user, mail_pass)
                 status['email'] = {
                     'status': '✅ Working',
                     'sender': mail_user,
-                    'mode': 'Brevo SMTP'
+                    'mode': 'Gmail SMTP'
                 }
             except Exception as smtp_err:
                 status['email'] = {
                     'status': '❌ SMTP Login Failed',
                     'error': str(smtp_err),
-                    'hint': 'Make sure you are using your Brevo SMTP Key, not your Brevo account password.'
+                    'hint': 'Make sure MAIL_PASSWORD is a Gmail App Password (not your account password).'
                 }
 
         # 3. AI key check
