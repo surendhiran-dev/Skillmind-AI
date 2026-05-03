@@ -22,38 +22,45 @@ def register():
     if not username or not email or not password or not otp_code:
         return jsonify({"message": "Username, email, password, and OTP are required"}), 400
         
-    # Verify OTP
-    otp_record = OTP.query.filter_by(email=email, otp_code=otp_code).order_by(OTP.created_at.desc()).first()
-    if not otp_record or otp_record.expires_at < datetime.utcnow():
-        return jsonify({"message": "Invalid or expired OTP"}), 400
-    
-    # Delete OTP after use
-    db.session.delete(otp_record)
-    
-    if User.query.filter_by(email=email).first():
-        return jsonify({"message": f"Email '{email}' already exists"}), 400
-    
-    new_user = User(
-        username=username,
-        email=email,
-        role=data.get('role', 'user')
-    )
-    new_user.set_password(password)
-    db.session.add(new_user)
-    db.session.commit()
-    
-    from flask_jwt_extended import create_access_token
-    access_token = create_access_token(identity=str(new_user.id))
-    
-    return jsonify({
-        "message": "User registered successfully",
-        "token": access_token,
-        "user": {
-            "id": new_user.id,
-            "username": new_user.username,
-            "role": new_user.role
-        }
-    }), 201
+    try:
+        # Verify OTP
+        otp_record = OTP.query.filter_by(email=email, otp_code=otp_code).order_by(OTP.created_at.desc()).first()
+        if not otp_record or otp_record.expires_at < datetime.utcnow():
+            return jsonify({"message": "Invalid or expired OTP"}), 400
+        
+        # Delete OTP after use
+        db.session.delete(otp_record)
+        
+        if User.query.filter_by(email=email).first():
+            return jsonify({"message": f"Email '{email}' already exists"}), 400
+        
+        new_user = User(
+            username=username,
+            email=email,
+            role=data.get('role', 'user')
+        )
+        new_user.set_password(password)
+        db.session.add(new_user)
+        db.session.commit()
+        
+        from flask_jwt_extended import create_access_token
+        access_token = create_access_token(identity=str(new_user.id))
+        
+        return jsonify({
+            "message": "User registered successfully",
+            "token": access_token,
+            "user": {
+                "id": new_user.id,
+                "username": new_user.username,
+                "role": new_user.role
+            }
+        }), 201
+    except Exception as e:
+        import traceback
+        print(f"REGISTRATION ERROR: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"message": "Registration error", "error": str(e), "traceback": traceback.format_exc()}), 500
+
 
 @auth_bp.route('/send-otp', methods=['POST'])
 def send_otp():
@@ -177,6 +184,21 @@ def verify_reset_otp():
         return jsonify({"message": "Invalid or expired OTP"}), 400
     
     return jsonify({"message": "OTP verified successfully"}), 200
+
+@auth_bp.route('/fix-db', methods=['GET'])
+def fix_db():
+    try:
+        from sqlalchemy import text
+        db_url = str(db.engine.url)
+        if 'mysql' in db_url:
+            db.session.execute(text("ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255)"))
+        else:
+            # SQLite doesn't support MODIFY COLUMN easily, but it also doesn't enforce String length limits by default
+            pass
+        db.session.commit()
+        return jsonify({"message": "Database schema updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"message": "Error updating database", "error": str(e)}), 500
 
 @auth_bp.route('/reset-password', methods=['POST'])
 def reset_password():
