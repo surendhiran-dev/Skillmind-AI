@@ -187,7 +187,9 @@ def _cooldown_html(user_name: str) -> str:
 def _send_via_sendgrid(to_email: str, subject: str, html_body: str, text_body: str) -> bool:
     """
     Priority 1 — SendGrid HTTP API.
-    Free: 100 emails/day. Works with Single Sender Verification.
+    Free: 100 emails/day. Works with Single Sender Verification (no custom domain needed).
+    After verifying skillmindai4@gmail.com, can send to ANY recipient email.
+    Setup: https://signup.sendgrid.com → Settings → Sender Authentication → Single Sender
     """
     api_key    = os.getenv('SENDGRID_API_KEY', '').strip()
     from_email = os.getenv('SENDGRID_FROM', os.getenv('MAIL_USERNAME', '')).strip()
@@ -200,27 +202,13 @@ def _send_via_sendgrid(to_email: str, subject: str, html_body: str, text_body: s
         return False
 
     payload = json.dumps({
-        "personalizations": [{
-            "to": [{"email": to_email}]
-        }],
+        "personalizations": [{"to": [{"email": to_email}]}],
         "from": {"email": from_email, "name": from_name},
-        "reply_to": {"email": from_email, "name": from_name},
         "subject": subject,
         "content": [
             {"type": "text/plain", "value": text_body},
             {"type": "text/html",  "value": html_body},
-        ],
-        # Mark as transactional — bypasses unsubscribe requirements & improves inbox placement
-        "categories": ["transactional", "otp"],
-        "mail_settings": {
-            "bypass_list_management": {"enable": True},
-            "bypass_spam_management":  {"enable": True},
-        },
-        "tracking_settings": {
-            "click_tracking":  {"enable": False},
-            "open_tracking":   {"enable": False},
-            "subscription_tracking": {"enable": False}
-        }
+        ]
     }).encode('utf-8')
 
     req = urllib.request.Request(
@@ -235,6 +223,7 @@ def _send_via_sendgrid(to_email: str, subject: str, html_body: str, text_body: s
 
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
+            # SendGrid returns HTTP 202 Accepted on success (empty body)
             if resp.status == 202:
                 print(f"[EMAIL SERVICE] ✅ Sent via SendGrid to {to_email}")
                 return True
