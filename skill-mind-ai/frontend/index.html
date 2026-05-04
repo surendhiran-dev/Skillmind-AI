@@ -12,7 +12,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link rel="stylesheet" href="style.css?force_update=3004">
+    <link rel="stylesheet" href="style.css?force_update=3004">
+    <link rel="stylesheet" href="mobile.css?v=1">
     <style>
         /* Forced Dark Theme Overrides */
         #codingLanguageSelector {
@@ -296,8 +297,61 @@
                     <img src="assets/default-avatar.png" alt="Profile" class="nav-avatar" id="navAvatarImg">
                     <span style="font-weight: 600; color: #fff; font-size: 0.9rem;">Profile</span>
                 </div>
+                <button class="hamburger-btn" id="hamburgerBtn" aria-label="Open menu" aria-expanded="false">
+                    <span class="ham-bar"></span>
+                    <span class="ham-bar"></span>
+                    <span class="ham-bar"></span>
+                </button>
             </div>
         </nav>
+
+        <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
+
+        <aside class="mobile-menu-drawer" id="mobileMenuDrawer" aria-hidden="true">
+            <div class="mobile-menu-header">
+                <div class="logo"><img src="assets/logo.png" alt="Logo" style="height: 28px; vertical-align: middle; margin-right: 8px; border-radius: 4px;">Skill Mind <span>AI</span></div>
+                <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="mobile-profile-banner">
+                <img src="assets/default-avatar.png" alt="Profile" class="mobile-nav-avatar" id="mobileNavAvatarImg">
+                <div class="mobile-profile-info">
+                    <span class="mobile-profile-name" id="mobileNavUsername">User</span>
+                    <span class="mobile-profile-role">Candidate</span>
+                </div>
+            </div>
+            <nav class="mobile-nav-links" aria-label="Mobile Navigation">
+                <a href="#" class="mobile-nav-link" data-view="dashboard">
+                    <div class="mnl-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg></div>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="mobile-nav-link" data-view="resume">
+                    <div class="mnl-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></div>
+                    <span>Resume &amp; JD</span>
+                </a>
+                <a href="#" class="mobile-nav-link" data-view="quiz">
+                    <div class="mnl-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg></div>
+                    <span>Quiz</span>
+                </a>
+                <a href="#" class="mobile-nav-link" data-view="coding">
+                    <div class="mnl-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg></div>
+                    <span>Coding</span>
+                </a>
+                <a href="#" class="mobile-nav-link" data-view="interview">
+                    <div class="mnl-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></div>
+                    <span>Interview</span>
+                </a>
+                <a href="#" class="mobile-nav-link" id="mob-nav-jobs" onclick="openJobsPage(event)">
+                    <div class="mnl-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+                    <span>Jobs</span>
+                </a>
+                <a href="#" class="mobile-nav-link" id="mob-nav-profile">
+                    <div class="mnl-icon"><i class="fa-solid fa-user-circle" style="font-size:18px;"></i></div>
+                    <span>Profile &amp; Settings</span>
+                </a>
+            </nav>
+        </aside>
 
         <!-- Dashboard -->
         <div id="dashboardPage" class="page active">
@@ -1636,6 +1690,29 @@
             </div><!-- end #iv-report -->
 
         </div><!-- end #interviewPage -->
+
+        <nav class="mobile-bottom-nav" id="mobileBottomNav">
+            <button class="mbn-item active" data-view="dashboard">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+                <span>Home</span>
+            </button>
+            <button class="mbn-item" data-view="resume">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                <span>Resume</span>
+            </button>
+            <button class="mbn-item" data-view="quiz">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                <span>Quiz</span>
+            </button>
+            <button class="mbn-item" data-view="coding">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>
+                <span>Code</span>
+            </button>
+            <button class="mbn-item" id="mbn-menu-btn">
+                <i class="fa-solid fa-bars"></i>
+                <span>More</span>
+            </button>
+        </nav>
     </section>
 
     <!-- Visme Embed Script -->
@@ -1938,6 +2015,107 @@
     <script src="interview_avatar.js?v=2001"></script>
     <script src="components/interview.js?v=11" defer></script>
     <script src="script.js?force_update=1053" defer></script>
+
+    <script>
+    /* Mobile Menu Controller */
+    (function(){
+        var btn=document.getElementById('hamburgerBtn'),
+            drawer=document.getElementById('mobileMenuDrawer'),
+            overlay=document.getElementById('mobileMenuOverlay'),
+            closeBtn=document.getElementById('mobileMenuClose');
+
+        function openMenu(){
+            if(!drawer||!overlay)return;
+            drawer.classList.add('open');
+            overlay.classList.add('open');
+            overlay.style.display='block';
+            drawer.setAttribute('aria-hidden','false');
+            if(btn){btn.classList.add('active');btn.setAttribute('aria-expanded','true');}
+            document.body.style.overflow='hidden';
+        }
+        function closeMenu(){
+            if(!drawer||!overlay)return;
+            drawer.classList.remove('open');
+            overlay.classList.remove('open');
+            setTimeout(function(){overlay.style.display='none';},300);
+            drawer.setAttribute('aria-hidden','true');
+            if(btn){btn.classList.remove('active');btn.setAttribute('aria-expanded','false');}
+            document.body.style.overflow='';
+        }
+
+        if(btn)btn.addEventListener('click',openMenu);
+        if(closeBtn)closeBtn.addEventListener('click',closeMenu);
+        if(overlay)overlay.addEventListener('click',closeMenu);
+
+        /* Mobile drawer nav links */
+        var mlinks=document.querySelectorAll('.mobile-nav-link[data-view]');
+        mlinks.forEach(function(l){
+            l.addEventListener('click',function(e){
+                e.preventDefault();
+                var v=l.getAttribute('data-view');
+                if(typeof showPage==='function')showPage(v);
+                mlinks.forEach(function(x){x.classList.remove('active');});
+                l.classList.add('active');
+                syncBN(v);
+                closeMenu();
+            });
+        });
+
+        /* Profile link */
+        var mobProf=document.getElementById('mob-nav-profile');
+        if(mobProf)mobProf.addEventListener('click',function(e){
+            e.preventDefault();
+            closeMenu();
+            var t=document.getElementById('navProfileLink');
+            if(t)t.click();
+        });
+
+        /* Bottom nav */
+        var bnItems=document.querySelectorAll('.mbn-item[data-view]');
+        bnItems.forEach(function(b){
+            b.addEventListener('click',function(){
+                var v=b.getAttribute('data-view');
+                if(typeof showPage==='function')showPage(v);
+                syncBN(v);
+                mlinks.forEach(function(l){
+                    if(l.getAttribute('data-view')===v)l.classList.add('active');
+                    else l.classList.remove('active');
+                });
+            });
+        });
+
+        var moreBtn=document.getElementById('mbn-menu-btn');
+        if(moreBtn)moreBtn.addEventListener('click',openMenu);
+
+        function syncBN(v){
+            bnItems.forEach(function(b){
+                if(b.getAttribute('data-view')===v)b.classList.add('active');
+                else b.classList.remove('active');
+            });
+        }
+
+        /* Sync profile info in drawer */
+        function syncMobProfile(){
+            try{
+                var u=JSON.parse(sessionStorage.getItem('user')||'null');
+                if(u){
+                    var n=document.getElementById('mobileNavUsername');
+                    if(n&&u.username)n.textContent=u.username;
+                    var a=document.getElementById('mobileNavAvatarImg');
+                    var ma=document.getElementById('navAvatarImg');
+                    if(a&&ma)a.src=ma.src;
+                }
+            }catch(e){}
+        }
+        setTimeout(syncMobProfile,800);
+        setTimeout(syncMobProfile,3000);
+
+        /* Escape key closes drawer */
+        document.addEventListener('keydown',function(e){
+            if(e.key==='Escape')closeMenu();
+        });
+    })();
+    </script>
 </body>
 
 
