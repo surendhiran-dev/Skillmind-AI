@@ -14,28 +14,37 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# AI Module Configurations
+# NVIDIA NIM default model (free, fast, widely available)
+NVIDIA_DEFAULT_MODEL = "meta/llama-3.1-8b-instruct"
+# OpenRouter default model
+OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini"
+# Standard OpenAI default model
+OPENAI_DEFAULT_MODEL = "gpt-3.5-turbo"
+
+# AI Module Configurations — model is set dynamically in configure_ai() based on key type
 MODULE_CONFIGS = {
-    'resume': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
-    'quiz': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
-    'coding': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
-    'interview': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
-    'support': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"},
-    'default': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': "openai/gpt-oss-20b"}
+    'resume':    {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': NVIDIA_DEFAULT_MODEL},
+    'quiz':      {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': NVIDIA_DEFAULT_MODEL},
+    'coding':    {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': NVIDIA_DEFAULT_MODEL},
+    'interview': {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': NVIDIA_DEFAULT_MODEL},
+    'support':   {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': NVIDIA_DEFAULT_MODEL},
+    'default':   {'client': None, 'anthropic_client': None, 'has_ai': False, 'has_anthropic': False, 'has_or': False, 'model': NVIDIA_DEFAULT_MODEL}
 }
 
-DEFAULT_MODEL = "openai/gpt-oss-20b"
+DEFAULT_MODEL = NVIDIA_DEFAULT_MODEL
 HAS_AI = False # Global flag for any AI availability
 
 def initialize_client(api_key):
-    """Helper to create an OpenAI client from a key (OpenRouter, NVIDIA NIM, or Standard)."""
-    if not api_key: return None, False, False
+    """Helper to create an OpenAI client from a key (OpenRouter, NVIDIA NIM, or Standard).
+    Returns (client, has_ai, has_or, default_model).
+    """
+    if not api_key: return None, False, False, NVIDIA_DEFAULT_MODEL
     
     # NVIDIA NIM Support
     if api_key.startswith("nvapi-"):
         try:
             client = OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=api_key)
-            return client, True, False # Not OpenRouter
+            return client, True, False, NVIDIA_DEFAULT_MODEL
         except Exception as e:
             logger.error(f"NVIDIA NIM init failed: {e}")
 
@@ -43,17 +52,17 @@ def initialize_client(api_key):
     if api_key.startswith("sk-or-v1"):
         try:
             client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-            return client, True, True
+            return client, True, True, OPENROUTER_DEFAULT_MODEL
         except Exception as e:
             logger.error(f"OpenRouter init failed: {e}")
             
     # Standard OpenAI Support
     elif api_key.startswith("sk-"):
         try:
-            return OpenAI(api_key=api_key), True, False
+            return OpenAI(api_key=api_key), True, False, OPENAI_DEFAULT_MODEL
         except Exception as e:
             logger.error(f"Standard OpenAI init failed: {e}")
-    return None, False, False
+    return None, False, False, NVIDIA_DEFAULT_MODEL
 
 def configure_ai():
     global HAS_AI
@@ -80,16 +89,18 @@ def configure_ai():
 
     for mod, env_var in key_mapping.items():
         key = os.getenv(env_var)
-        client, has_ai, has_or = initialize_client(key)
+        client, has_ai, has_or, model = initialize_client(key)
         
         # Fallback to default if module key is missing
         if not client and mod != 'default':
             default_key = os.getenv('OPENAI_API_KEY')
-            client, has_ai, has_or = initialize_client(default_key)
+            client, has_ai, has_or, model = initialize_client(default_key)
             
         MODULE_CONFIGS[mod]['client'] = client
         MODULE_CONFIGS[mod]['has_ai'] = has_ai
         MODULE_CONFIGS[mod]['has_or'] = has_or
+        # Set the correct model based on provider
+        MODULE_CONFIGS[mod]['model'] = model
         
         # Add Anthropic support
         if anthropic_client:
@@ -100,6 +111,8 @@ def configure_ai():
         if has_ai: HAS_AI = True
         
     logger.info(f"AI configurations initialized. Overall AI: {HAS_AI}")
+    for mod, cfg in MODULE_CONFIGS.items():
+        logger.info(f"  Module '{mod}': has_ai={cfg['has_ai']}, model={cfg['model']}")
 
 configure_ai()
 
