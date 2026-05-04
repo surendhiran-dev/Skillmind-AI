@@ -249,9 +249,60 @@ def create_app():
                 'hint':   'Add SENDGRID_API_KEY to Render environment variables.'
             }
 
-        # 3. AI key check
-        ai_key = os.getenv('OPENAI_API_KEY', '')
-        status['ai_key'] = '✅ Set' if ai_key else '❌ Missing'
+        # 3. AI key — live test call
+        ai_key = os.getenv('OPENAI_API_KEY', '').strip()
+        if not ai_key:
+            status['ai'] = {
+                'status': '❌ Missing',
+                'hint': 'Set OPENAI_API_KEY in Render Environment Variables'
+            }
+        else:
+            # Detect key type & endpoint
+            if ai_key.startswith('nvapi-'):
+                key_type = 'NVIDIA NIM'
+                base_url = 'https://integrate.api.nvidia.com/v1'
+                test_model = 'nvidia/llama-3.1-nemotron-nano-8b-instruct'
+            elif ai_key.startswith('sk-or-v1'):
+                key_type = 'OpenRouter'
+                base_url = 'https://openrouter.ai/api/v1'
+                test_model = 'openai/gpt-4o-mini'
+            elif ai_key.startswith('sk-'):
+                key_type = 'OpenAI'
+                base_url = 'https://api.openai.com/v1'
+                test_model = 'gpt-3.5-turbo'
+            else:
+                key_type = 'Unknown'
+                base_url = 'https://api.openai.com/v1'
+                test_model = 'gpt-3.5-turbo'
+
+            # Live test call
+            try:
+                from openai import OpenAI
+                test_client = OpenAI(base_url=base_url, api_key=ai_key)
+                resp = test_client.chat.completions.create(
+                    model=test_model,
+                    messages=[{"role": "user", "content": "Say OK"}],
+                    max_tokens=5,
+                    timeout=15
+                )
+                reply = resp.choices[0].message.content.strip() if resp.choices else '?'
+                status['ai'] = {
+                    'status': '✅ Working',
+                    'key_type': key_type,
+                    'base_url': base_url,
+                    'model_tested': test_model,
+                    'response': reply
+                }
+            except Exception as ai_err:
+                status['ai'] = {
+                    'status': '❌ API Call Failed',
+                    'key_type': key_type,
+                    'base_url': base_url,
+                    'model_tested': test_model,
+                    'error': str(ai_err)
+                }
+        # keep legacy field for backward compat
+        status['ai_key'] = status.get('ai', {}).get('status', '❌ Missing')
 
         # 4. Environment
         status['environment'] = os.getenv('FLASK_ENV', 'production')
