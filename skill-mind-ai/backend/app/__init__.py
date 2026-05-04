@@ -261,7 +261,7 @@ def create_app():
             if ai_key.startswith('nvapi-'):
                 key_type = 'NVIDIA NIM'
                 base_url = 'https://integrate.api.nvidia.com/v1'
-                test_model = 'meta/llama-3.1-8b-instruct'
+                test_model = 'openai/gpt-oss-20b'
             elif ai_key.startswith('sk-or-v1'):
                 key_type = 'OpenRouter'
                 base_url = 'https://openrouter.ai/api/v1'

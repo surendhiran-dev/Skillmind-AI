@@ -14,8 +14,8 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# NVIDIA NIM default model (free, fast, widely available)
-NVIDIA_DEFAULT_MODEL = "meta/llama-3.1-8b-instruct"
+# NVIDIA NIM model — Reasoning MoE, fast & efficient (available via Partner Endpoint)
+NVIDIA_DEFAULT_MODEL = "openai/gpt-oss-20b"
 # OpenRouter default model
 OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini"
 # Standard OpenAI default model
